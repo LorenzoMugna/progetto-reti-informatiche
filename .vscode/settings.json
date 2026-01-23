@@ -1,0 +1,7 @@
+{
+  "tinymist.preview.background.args": [
+    "--data-plane-host=127.0.0.1:23635",
+    "--invert-colors=never"
+  ],
+  "tinymist.preview.background.enabled": true
+}
