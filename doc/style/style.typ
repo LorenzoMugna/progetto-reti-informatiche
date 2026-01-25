@@ -1,3 +1,16 @@
+#let numbering_offset(offset:int, ..numbers) = {
+  let nums = numbers.pos()
+
+  if nums.len() < offset+1 {
+    return 
+  }
+
+  nums = nums.slice(offset)
+  numbering("1.1", ..nums)
+}
+
+#let SPACE_LEADING = 0.55em
+#let HEADING_OFFSET = 0
 #let document(
   title: content,
   subtitle: content,
@@ -11,7 +24,6 @@
     size: 11pt,
   )
 
-  let SPACE_LEADING = 0.55em
   set par(
     justify: true,
     first-line-indent: 1.8em,
@@ -19,17 +31,18 @@
     leading: SPACE_LEADING,
   )
 
-	show heading.where(level: 2): set text(weight: "regular")
+  set heading(offset: HEADING_OFFSET)
+  set heading(numbering: numbering_offset.with(offset:HEADING_OFFSET))
 
   place(float: true, scope: "parent", center + top)[
-		#set text(size: 18pt)
-		*#title*
+    #set text(size: 18pt)
+    *#title*
 
-		#set text(size: 14pt)
-		#subtitle
-		
-		#set text(size: 12pt)
-		Appello del 17 febbraio 2026
+    #set text(size: 14pt)
+    #subtitle
+
+    #set text(size: 12pt)
+    Appello del 17 febbraio 2026
   ]
 
   doc
