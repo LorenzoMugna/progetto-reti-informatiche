@@ -15,7 +15,7 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true
             },
-			"compilerArgs": ["-Wall", "-Wextra", "-Wpedantic", "-Werror"]
+			"compilerArgs": ["-Wall", "-Wextra", "-Wpedantic", "-Werror", "-g", "-fsanitize=address"]
         }
     ],
     "version": 4
