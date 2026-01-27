@@ -1,4 +1,5 @@
 #include "state-handler.h"
+#include "lavagna-net.h"
 
 /* -------------- Definizione entità globali ------------------*/ 
 /* --(visibili in tutte le unità di compilazione di lavagna) -- */
@@ -46,6 +47,8 @@ int main()
 	init_list(&to_do_list);
 	init_list(&doing_list);
 	init_list(&done_list);
+	init_list(&user_list);
+
 	char msg[] = "Hello world!";
 	for (int i = 0; i < 3; i++)
 	{
@@ -88,5 +91,18 @@ int main()
 
 	destroy_command_list(test);
 	free(test);
+
+
+	// Network test
+	int ser_sock = init_server_socket();
+	uint32_t num_users=0;
+	while(1){
+		accept_user(ser_sock);
+		user_list_t *last_user = (user_list_t*)user_list.prev;
+		uint16_t port = ntohs(last_user->data.sockaddr.sin_port);
+		char netaddr[20];
+		inet_ntop(AF_INET, &last_user->data.sockaddr.sin_addr, netaddr, sizeof(netaddr));
+		printf("New User! (%d) %s:%u\n", ++num_users, netaddr, port);
+	}
 	return 0;
 }

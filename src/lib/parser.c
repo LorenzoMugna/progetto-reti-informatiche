@@ -115,7 +115,7 @@ command_t *parse_command(char *string)
 	trim(command);
 	out->command = find_command_id(command);
 	if ((int)out->command == -1)
-		goto parse_command_error;
+		goto error;
 
 	char *tok = __strtok_r(NULL, " ", &tok_state);
 	while (tok)
@@ -127,7 +127,7 @@ command_t *parse_command(char *string)
 		char *newbuf = malloc(n + 1);
 		if (!newbuf)
 		{
-			goto parse_command_error;
+			goto error;
 		}
 
 		memcpy(newbuf, tok, n + 1);
@@ -137,7 +137,7 @@ command_t *parse_command(char *string)
 		if (!newarg)
 		{
 			free(newbuf);
-			goto parse_command_error;
+			goto error;
 		}
 		push_back(&out->param_list, &newarg->list);
 
@@ -149,7 +149,7 @@ command_t *parse_command(char *string)
 	return out;
 
 	// Gestisci errore: libera risorse allocate
-parse_command_error:
+error:
 	destroy_command_list(out);
 	free(out);
 	return NULL;
