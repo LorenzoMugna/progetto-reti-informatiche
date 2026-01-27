@@ -34,17 +34,23 @@ static inline void push_back(list_t *head, list_t *elem)
 	head->prev = prev->next = elem;
 }
 
-static inline list_t *pop_back(list_t *head)
+
+static inline list_t *pop_elem(list_t *elem)
 {
-	if (list_empty(head))
+	if (list_empty(elem))
 		return NULL;
 
-	list_t *out = head->prev;
-	list_t *prev = out->prev;
-	head->prev = prev;
-	prev->next = head;
-	init_list(out);
-	return out;
+	list_t *prev = elem->prev;
+	list_t *next = elem->next;
+	next->prev = prev;
+	prev->next = next;
+	init_list(elem);
+	return elem;
+}
+
+static inline list_t *pop_back(list_t *head)
+{
+	return pop_elem(head->prev);
 }
 
 #endif

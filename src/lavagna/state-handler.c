@@ -1,7 +1,7 @@
 #include "state-handler.h"
 #include "lavagna-net.h"
 
-/* -------------- Definizione entità globali ------------------*/ 
+/* -------------- Definizione entità globali ------------------*/
 /* --(visibili in tutte le unità di compilazione di lavagna) -- */
 
 list_t to_do_list;
@@ -10,6 +10,7 @@ list_t done_list;
 
 list_t user_list;
 
+user_list_t *user_table[MAX_PORT];
 
 void print_cardlist(list_t *b)
 {
@@ -42,12 +43,42 @@ void show_lavagna_handler()
 	printf("-----------------------------\n");
 }
 
-int main()
+void parse_test()
 {
-	init_list(&to_do_list);
-	init_list(&doing_list);
-	init_list(&done_list);
-	init_list(&user_list);
+	char testcmnd[] = "HANDLE_CARD arg1 aege3 ewor soerum ";
+	char temp[strlen(testcmnd) + 1];
+	memcpy(temp, testcmnd, strlen(testcmnd) + 1);
+	// test memory leak
+	command_t *test = parse_command(temp);
+	destroy_command_list(test);
+	free(test);
+
+	memcpy(temp, testcmnd, strlen(testcmnd) + 1);
+	test = parse_command(temp);
+
+	if (test)
+	{
+		printf("%d: %s (%d arg)\n", test->command, str_command_tokens[test->command], test->argc);
+	}
+	else
+	{
+		printf("Not found.\n");
+	}
+
+	list_t *iter = test->param_list.next;
+	while (iter != &test->param_list)
+	{
+		command_arg_list_t *elem = (command_arg_list_t *)iter;
+		printf("%s\n", elem->buffer);
+		iter = iter->next;
+	}
+
+	destroy_command_list(test);
+	free(test);
+}
+
+void card_test()
+{
 
 	char msg[] = "Hello world!";
 	for (int i = 0; i < 3; i++)
@@ -63,42 +94,28 @@ int main()
 	list_t *elem = pop_back(&to_do_list);
 	push_back(&done_list, elem);
 	show_lavagna_handler();
+}
 
-
-	char testcmnd[] = "HANDLE_CARD arg1 aege3 ewor soerum ";
-	char temp[strlen(testcmnd)+1];
-	memcpy(temp, testcmnd, strlen(testcmnd)+1);
-	// test memory leak
-	command_t *test = parse_command(temp);
-	destroy_command_list(test);
-	free(test);
-
-	memcpy(temp, testcmnd, strlen(testcmnd)+1);
-	test = parse_command(temp);
-
-	if (test){
-		printf("%d: %s (%d arg)\n", test->command, str_command_tokens[test->command], test->argc);
-	}else{
-		printf("Not found.\n");
-	}
-
-	list_t *iter = test->param_list.next;
-	while (iter != &test->param_list){
-		command_arg_list_t *elem = (command_arg_list_t*) iter;
-		printf("%s\n", elem->buffer);
-		iter = iter->next;
-	}
-
-	destroy_command_list(test);
-	free(test);
+int main()
+{
+	init_list(&to_do_list);
+	init_list(&doing_list);
+	init_list(&done_list);
+	init_list(&user_list);
 
 
 	// Network test
 	int ser_sock = init_server_socket();
-	uint32_t num_users=0;
-	while(1){
-		accept_user(ser_sock);
-		user_list_t *last_user = (user_list_t*)user_list.prev;
+	uint32_t num_users = 0;
+	while (1)
+	{
+		if(accept_user(ser_sock)==-1)
+		{
+			printf("Utente rifiutato.\n");
+			continue;
+		};
+
+		user_list_t *last_user = (user_list_t *)user_list.prev;
 		uint16_t port = ntohs(last_user->data.sockaddr.sin_port);
 		char netaddr[20];
 		inet_ntop(AF_INET, &last_user->data.sockaddr.sin_addr, netaddr, sizeof(netaddr));
