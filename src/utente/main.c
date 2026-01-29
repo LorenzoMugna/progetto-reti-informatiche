@@ -2,10 +2,11 @@
 #include <string.h>
 #include <malloc.h>
 #include <assert.h>
+
 #include "parsing.h"
 #include "list.h"
-#include <arpa/inet.h>
-#include <unistd.h>
+#include "utente-net.h"
+
 
 struct test_list
 {
@@ -42,34 +43,13 @@ int main(int argc, char** argv)
 	}
 	printf("%s\n%u\n", argv[1], port);
 
-	int mysock = socket(AF_INET, SOCK_STREAM, 0);
-	int one = 1;
-	setsockopt(mysock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-	struct sockaddr_in myaddr;
-	inet_pton(AF_INET, "127.0.0.1", &myaddr.sin_addr);
-	myaddr.sin_family = AF_INET;
-	myaddr.sin_port = htons(port);
-	int er = bind(mysock, (struct sockaddr*)&myaddr, sizeof(myaddr));
-	if (er == -1){
-		fprintf(stderr, "Ohno");
+	int mysock = init_socket(port);
+	if(mysock==-1)
+	{
 		return 1;
 	}
-
-	struct sockaddr_in servaddr;
-	inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(5678);
-	int conn = connect(mysock, (struct sockaddr*)&servaddr, sizeof(servaddr));
-
-	char buf[] = "HELLO \n\n";
-	send(mysock, buf, sizeof(buf), 0);
-
-	char recbuf[100];
-	int n = recv(mysock,recbuf, sizeof(recbuf)-1, 0);
-	recbuf[n] = '\0';
-	printf("%s\n",recbuf);
-
 	sleep(2);
-	close(conn);
+
+	sendf(mysock, "%s\n\n", str_command_tokens[QUIT]);
 	return 0;
 }

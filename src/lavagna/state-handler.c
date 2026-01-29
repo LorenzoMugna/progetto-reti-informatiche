@@ -45,7 +45,7 @@ void show_lavagna_handler()
 
 void parse_test()
 {
-	char testcmnd[] = "HANDLE_CARD arg1 aege3 ewor soerum ";
+	char testcmnd[] = "HELLO \n\n";
 	char temp[strlen(testcmnd) + 1];
 	memcpy(temp, testcmnd, strlen(testcmnd) + 1);
 	// test memory leak
@@ -103,12 +103,11 @@ int main()
 	init_list(&done_list);
 	init_list(&user_list);
 
-
 	// Network test
-	int ser_sock = init_server_socket();
-	uint32_t num_users = 0;
+	int ser_sock = init_server();
 	while (1)
 	{
+
 		if(accept_user(ser_sock)==-1)
 		{
 			printf("Utente rifiutato.\n");
@@ -119,7 +118,7 @@ int main()
 		uint16_t port = ntohs(last_user->data.sockaddr.sin_port);
 		char netaddr[20];
 		inet_ntop(AF_INET, &last_user->data.sockaddr.sin_addr, netaddr, sizeof(netaddr));
-		printf("New User! (%d) %s:%u\n", ++num_users, netaddr, port);
+		printf("New User! (%d) %s:%u\n", current_users, netaddr, port);
 	}
 	return 0;
 }

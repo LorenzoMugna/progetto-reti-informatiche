@@ -66,3 +66,14 @@ Da quello che ho capito completamente deterministico (non c'è veramente un uten
 4. ricevute tutte le review, invia alla lavagna (`CARD_DONE`)
 
 
+# TODO
+Lavagna:
+- gestione errori send (fai una common-net per primitive safe)
+- Multiplexing I/O fatto bene
+- gestione comandi da terminale
+    - visualizza help string
+
+Client:
+- Un client non deve poter uscire se sta facendo una review
+
+

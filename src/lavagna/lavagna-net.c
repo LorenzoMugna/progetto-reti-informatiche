@@ -3,10 +3,15 @@
 #include "state-handler.h"
 #include <stdio.h>
 
-char netbuffer[NETBUFFER_SIZE + 1];
+struct pollfd sock_set[MAX_USERS];
+uint32_t current_users;
 
-int init_server_socket()
+int init_server()
 {
+	// Inizializzazzione variabili di stato
+	current_users = 0;
+	memset(sock_set, 0, sizeof(sock_set));
+
 	int out = socket(AF_INET, SOCK_STREAM, 0);
 	if (out == -1)
 		goto socket_error;
@@ -41,6 +46,7 @@ socket_error:
 
 int accept_user(int server_fd)
 {
+	// Accetta connessione TCP
 	struct sockaddr_in useraddr;
 	socklen_t size_useraddr = sizeof(useraddr);
 	int user_sock = accept(server_fd, (struct sockaddr *)&useraddr, &size_useraddr);
@@ -49,38 +55,40 @@ int accept_user(int server_fd)
 		goto error;
 	}
 
-	uint16_t user_port = ntohs(useraddr.sin_port);
-	if (user_table[user_port] != NULL)
-	{
-		goto sock_created_error;
-	}
 
+	// Attendi un comando con timeout
 	fd_set user_fd_set;
 	FD_ZERO(&user_fd_set);
 	FD_SET(user_sock, &user_fd_set);
 	struct timeval timeout = _LAVAGNA_TIMEOUT;
-
 	int select_return = select(user_sock + 1, &user_fd_set, NULL, NULL, &timeout);
+
+	// Errore select o utente non ha risposto in tempo
 	if (select_return == -1 || !FD_ISSET(user_sock, &user_fd_set))
-	{ // Errore select o utente non ha risposto in tempo
+	{ 
 		goto sock_created_error;
 	}
 
-	recv(user_sock, netbuffer, NETBUFFER_SIZE, 0);
-	netbuffer[NETBUFFER_SIZE] = '\0';
-	command_t *command = parse_command(netbuffer);
+	// Parsa comando e controlla che sia un HELLO
+	command_t *command = recv_command(user_sock);
 	if (!command)
 		goto sock_created_error;
-
-	if (command->command != HELLO)
-		goto command_parsed_error;
-
+	command_token_t command_id = command->command;
+	destroy_command_list(command);
 	free(command);
 
-	// Comunica dimensione buffer al client
-	char sendbuf[30];
-	snprintf(sendbuf, sizeof(sendbuf), "HELLO %d\n", NETBUFFER_SIZE);
-	send(user_sock, sendbuf, strlen(sendbuf+1), 0);
+	if (command_id != HELLO)
+		goto sock_created_error;
+
+	// Ottieni la porta e controlla che non sia già presente
+	uint16_t user_port = ntohs(useraddr.sin_port);
+	if (user_table[user_port] != NULL)
+	{
+		goto connection_rejected_error;
+	}
+
+	// Conferma la connessione al client inviandogli HELLO
+	sendf(user_sock, "%s", str_command_tokens[HELLO]);
 
 	// Creazione nuova entry nella user_list e user_table
 	user_list_t *newuser = malloc(sizeof(*newuser));
@@ -91,11 +99,17 @@ int accept_user(int server_fd)
 	push_back(&user_list, (list_t *)newuser);
 	user_table[user_port] = newuser;
 
+	// Voglio controllare solo in ricezione
+	sock_set[current_users].events = POLLIN; 
+	sock_set[current_users].fd = user_sock;
+	current_users++;
+
 	return user_sock;
 
 	// Gestione errori
-command_parsed_error:
-	free(command);
+connection_rejected_error:
+	// Rifiuta il client inviandogli QUIT
+	sendf(user_sock, "%s", str_command_tokens[QUIT]);
 sock_created_error:
 	close(user_sock);
 error:
@@ -105,15 +119,15 @@ error:
 void disconnect_user(uint16_t port)
 {
 	return;
-	//TODO
+	// TODO
 	user_list_t *user_elem = user_table[port];
 	if (!user_elem)
 		return;
 
 	int fd_user = user_elem->data.socket;
 	char to_send[] = "QUIT\n";
-	send(fd_user, to_send, sizeof(to_send),0);
+	send(fd_user, to_send, sizeof(to_send), 0);
 	close(fd_user);
-	pop_elem((list_t*)user_elem);
+	pop_elem((list_t *)user_elem);
 	free(user_elem);
 }

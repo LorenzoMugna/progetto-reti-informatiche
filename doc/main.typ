@@ -5,15 +5,21 @@
 	subtitle: [Lorenzo Mugnaioli]
 )
 
+= Istruzioni di compilazione
+Nella cartella del progetto eseguire il comando
+#highlight[`make all`]. Saranno prodotti due file
+`./lavagna` e `./utente` nella cartella radice del progetto.
+
+
 = Protocollo applicativo
+== Binary contro Text
 L'applicazione non necessita né di trasferimenti di grandi
 quantità di dati né di garanzie su latenza o throughput.
 
-Per questo motivo e in previsione di -- ipotetici --
-futuri aggiornamenti, è stato deciso di non scambiare
-messaggi binari tra gli host dell applicazione, bensì di
-utilizzare un protocollo applicativo *text-based*, che
-risulta più facilmente modificabile.
+I messaggi scambiati tra gli host dell applicazione
+risultano piuttosto semplici: , bensì
+di utilizzare un protocollo applicativo di tipo *text*,
+che risulta più facilmente modificabile e integrabile.
 
 Di nuovo, non essendo critica la performance ma dovendo
 scambiare dati in maniera affidabile tra gli host
@@ -50,4 +56,8 @@ dagli altri gestori.
 #colbreak(weak: true)
 #lorem(100)
 
+#lorem(100)
+#pagebreak()
+
+= #lorem(2)
 #lorem(100)

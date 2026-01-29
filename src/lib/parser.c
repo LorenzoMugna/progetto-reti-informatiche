@@ -111,7 +111,7 @@ command_t *parse_command(char *string)
 	init_list(&out->param_list);
 
 	char *tok_state = NULL;
-	char *command = __strtok_r(string, " ", &tok_state);
+	char *command = __strtok_r(string, " \n", &tok_state);
 	trim(command);
 	out->command = find_command_id(command);
 	if ((int)out->command == -1)
