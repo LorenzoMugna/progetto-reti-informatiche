@@ -10,12 +10,12 @@
 #include "list.h"
 #include "parsing.h"
 
-#define MAX_PORT ((1<<16)-1)
+#define MAX_PORT ((1 << 16) - 1)
 
 /* ---------- Entità globali (visibili in tutte le unità di compilazione di lavagna) -----------------*/
-extern list_t to_do_list; // Contenitore di `cardlist_t`
-extern list_t doing_list; // Contenitore di `cardlist_t`
-extern list_t done_list;  // Contenitore di `cardlist_t`
+extern list_t to_do_list; // Contenitore di `card_list_t`
+extern list_t doing_list; // Contenitore di `card_list_t`
+extern list_t done_list;  // Contenitore di `card_list_t`
 extern list_t user_list;  // Contenitore di `user_list_t`
 
 typedef struct user
@@ -23,24 +23,22 @@ typedef struct user
 	struct sockaddr_in sockaddr; // Indirizzo dell'utente
 	int socket;					 // FD del socket associato all'utente
 	bool handling_card;			 // se l'utente sta gestendo una carta o meno
-	card_t *handled_card;		 // la carta che l'utente sta gestendo
+	card_list_t *handled_card;	 // la carta che l'utente sta gestendo
 } user_t;
-
-
 
 typedef struct user_list
 {
 	list_t list; // Puntatori per creare la lista
 	user_t data; // Dati dell'utente
-}user_list_t;
+} user_list_t;
 
 // Utente identificato dalla porta: viene usata un array
 // di puntatori a strutture dati user_list_t per un accesso rapido
-extern user_list_t* user_table[MAX_PORT];
+extern user_list_t *user_table[MAX_PORT];
 
 /**
  * @brief stampa una lista di card, evidenziando ID, e descrizione dell'attività
- * @param b puntatore alla testa della cardlist
+ * @param b puntatore alla testa della card_list
  */
 void print_cardlist(list_t *b);
 

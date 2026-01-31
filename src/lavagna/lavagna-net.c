@@ -6,40 +6,76 @@
 struct pollfd sock_set[MAX_USERS];
 uint32_t current_users;
 
+void remove_from_sock_set(int fd)
+{
+	uint32_t w = RESERVED_SOCK_SET_SOCKETS,
+			 r = RESERVED_SOCK_SET_SOCKETS;
+	while (r < current_users + RESERVED_SOCK_SET_SOCKETS)
+	{
+		if (sock_set[r].fd == fd)
+			r++;
+		if (r != w)
+		{
+			sock_set[w] = sock_set[r];
+		}
+		r++;
+		w++;
+	}
+	current_users--;
+	memset(&sock_set[current_users + RESERVED_SOCK_SET_SOCKETS], 0, sizeof(sock_set[0]));
+}
+
+user_list_t *find_user_from_fd(int fd)
+{
+	// Scorri la lista degli utenti e trovane uno con fd che corrisponda
+	list_t *iter = user_list.next;
+	while (iter != &user_list)
+	{
+		user_list_t *cast_iter = (user_list_t *)iter;
+		if (cast_iter->data.socket == fd)
+			return cast_iter;
+
+		iter = iter->next;
+	}
+	return NULL;
+}
+
 int init_server()
 {
 	// Inizializzazzione variabili di stato
 	current_users = 0;
 	memset(sock_set, 0, sizeof(sock_set));
+	sock_set[RESERVED_STDIN] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
 
-	int out = socket(AF_INET, SOCK_STREAM, 0);
-	if (out == -1)
+	int listener_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (listener_fd == -1)
 		goto socket_error;
 
 	int one_ptr = 1;
-	setsockopt(out, SOL_SOCKET, SO_REUSEADDR, &one_ptr, sizeof(one_ptr));
+	setsockopt(listener_fd, SOL_SOCKET, SO_REUSEADDR, &one_ptr, sizeof(one_ptr));
 
 	struct sockaddr_in listen_addr;
 	listen_addr.sin_family = AF_INET;
 	listen_addr.sin_addr.s_addr = INADDR_ANY;
 	listen_addr.sin_port = htons(LAVAGNA_PORT);
 
-	if (bind(out, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) == -1)
+	if (bind(listener_fd, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) == -1)
 	{
 		goto bind_error;
 	}
 
-	if (listen(out, CONNECTION_BACKLOG) == -1)
+	if (listen(listener_fd, CONNECTION_BACKLOG) == -1)
 	{
 		goto listen_error;
 	}
 
-	return out;
+	sock_set[RESERVED_LISTENER] = (struct pollfd){.fd = listener_fd, .events = POLLIN};
+	return listener_fd;
 
 	// Gestione degli errori
 listen_error:
 bind_error:
-	close(out);
+	close(listener_fd);
 socket_error:
 	return -1;
 }
@@ -55,7 +91,6 @@ int accept_user(int server_fd)
 		goto error;
 	}
 
-
 	// Attendi un comando con timeout
 	fd_set user_fd_set;
 	FD_ZERO(&user_fd_set);
@@ -65,7 +100,7 @@ int accept_user(int server_fd)
 
 	// Errore select o utente non ha risposto in tempo
 	if (select_return == -1 || !FD_ISSET(user_sock, &user_fd_set))
-	{ 
+	{
 		goto sock_created_error;
 	}
 
@@ -87,11 +122,11 @@ int accept_user(int server_fd)
 		goto connection_rejected_error;
 	}
 
-	// Conferma la connessione al client inviandogli HELLO
-	sendf(user_sock, "%s", str_command_tokens[HELLO]);
-
 	// Creazione nuova entry nella user_list e user_table
 	user_list_t *newuser = malloc(sizeof(*newuser));
+	if (!newuser)
+		goto connection_rejected_error;
+	memset(newuser, 0, sizeof(*newuser));
 	memcpy(&newuser->data.sockaddr, &useraddr, size_useraddr);
 	newuser->data.handling_card = false;
 	newuser->data.socket = user_sock;
@@ -100,10 +135,11 @@ int accept_user(int server_fd)
 	user_table[user_port] = newuser;
 
 	// Voglio controllare solo in ricezione
-	sock_set[current_users].events = POLLIN; 
-	sock_set[current_users].fd = user_sock;
+	sock_set[current_users + RESERVED_SOCK_SET_SOCKETS] = (struct pollfd){.fd = user_sock, .events = POLLIN};
 	current_users++;
 
+	// Conferma la connessione al client inviandogli HELLO
+	sendf(user_sock, "%s", str_command_tokens[HELLO]);
 	return user_sock;
 
 	// Gestione errori
@@ -118,16 +154,41 @@ error:
 
 void disconnect_user(uint16_t port)
 {
-	return;
-	// TODO
-	user_list_t *user_elem = user_table[port];
-	if (!user_elem)
-		return;
-
-	int fd_user = user_elem->data.socket;
-	char to_send[] = "QUIT\n";
-	send(fd_user, to_send, sizeof(to_send), 0);
-	close(fd_user);
-	pop_elem((list_t *)user_elem);
-	free(user_elem);
+	port = 0;
+	port = port;
+	// TOUSE
 }
+
+/* ---- HANDLER EVENTI RICEVUTI ---- */
+int handle_QUIT(user_list_t *user, command_t *command)
+{
+	printf("Gestendo disconnessione...\n");
+
+	if (!user || !command)
+		return -1;
+
+	// Passi per disconnesione utente
+	// 1. sposta eventuale carta da doing a To Do
+	card_list_t *card = user->data.handled_card;
+	if (card)
+	{
+		pop_elem((list_t *)card);
+		push_back(&to_do_list, (list_t *)card);
+	}
+
+	uint16_t port = ntohs(user->data.sockaddr.sin_port);
+	int fd = user->data.socket;
+
+	// 2. rimuovi user dalla lista di utenti
+	pop_elem((list_t *)user);
+	memset(&user_table[port], 0, sizeof(user_table[port]));
+	// 3. rimuovi fd dalla sock_set
+	remove_from_sock_set(fd);
+	close(fd);
+
+	free(user);
+	return 0;
+}
+
+command_handler_t command_handling_table[N_COMMAND_TOKENS] = {
+	[QUIT] = handle_QUIT};

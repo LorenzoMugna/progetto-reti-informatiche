@@ -2,6 +2,7 @@
 #define LAVAGNA_NET_H
 
 #include "net.h"
+#include "state-handler.h"
 #include <sys/time.h>
 #include <poll.h>
 
@@ -11,10 +12,17 @@
 
 #define MAX_USERS 256 // Massimo numero di utenti
 
+#define RESERVED_SOCK_SET_SOCKETS 2 // 2 socket riservati (stdin e listening server socket)
+#define RESERVED_STDIN 0
+#define RESERVED_LISTENER 1
 
 extern struct pollfd sock_set[MAX_USERS]; // set per fare multiplexing I/O sincrono tra
 										  // tutte le connessioni tcp aperte
 extern uint32_t current_users;
+
+typedef int (*command_handler_t)(user_list_t *user,command_t* command);
+
+extern command_handler_t command_handling_table[N_COMMAND_TOKENS];
 
 /**
  * @brief crea un socket TCP (`SOCK_STREAM`) e lo fa ascoltare
@@ -24,6 +32,14 @@ extern uint32_t current_users;
  * -1 in caso di errore.
  */
 int init_server();
+
+
+/**
+ * @brief trova un utente nella lista di utenti `user_list`.
+ * 
+ * @returns puntatore all'elemento della lista se lo trova, `NULL` altrimenti
+ */
+user_list_t *find_user_from_fd(int fd);
 
 /**
  * @brief accetta un nuovo utente e attende la ricezione di un HELLO

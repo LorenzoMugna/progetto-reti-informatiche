@@ -39,9 +39,11 @@
 #define TOK(x) x
 typedef enum command_token
 {
-	COMMAND_TOKENS
+	COMMAND_TOKENS,
+	N_COMMAND_TOKENS // Conta il numero di comandi
 } command_token_t;
 #undef TOK
+
 
 // Per usi futuri in altri file la lista
 // di comandi verrà interpretata come lista di stringhe
@@ -50,6 +52,7 @@ typedef enum command_token
 // Definizione stringhe, da usare con strcmp mentre
 // viene parsato il messaggio (definizione in lib/parser.c)
 extern const char *str_command_tokens[];
+
 
 // lista di parametri
 typedef struct command_arg_list

@@ -15,10 +15,10 @@ typedef struct
 
 } card_t;
 
-typedef struct cardlist
+typedef struct card_list
 {
 	list_t list_elem;
 	card_t card;
-} cardlist_t;
+} card_list_t;
 
 #endif
