@@ -13,8 +13,9 @@
 
 
 /**
- * @brief invia un messaggio sul socket `fd` seguendo un formato.
- * Stampa un messaggio di errore su `stderr`
+ * @brief invia un messaggio sul socket `fd`, seguendo il formato
+ * specificato e prependendo la lunghezza del contenuto.
+ * 
  * @return il numero di byte inviati se ha successo, -1 altrimenti
  */
 int sendf(int fd, const char* format, ...);

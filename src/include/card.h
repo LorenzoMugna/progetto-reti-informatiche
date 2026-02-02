@@ -6,6 +6,8 @@
 #include <time.h>
 #include "list.h"
 
+extern uint64_t last_card_id;
+
 typedef struct
 {
 	uint64_t ID;		 // ID

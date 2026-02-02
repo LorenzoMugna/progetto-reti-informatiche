@@ -1,7 +1,9 @@
 #include "lavagna-net.h"
-#include "unistd.h"
 #include "state-handler.h"
+#include "printing.h"
+
 #include <stdio.h>
+#include <unistd.h>
 
 struct pollfd sock_set[MAX_USERS];
 uint32_t current_users;
@@ -135,7 +137,9 @@ int accept_user(int server_fd)
 	user_table[user_port] = newuser;
 
 	// Voglio controllare solo in ricezione
-	sock_set[current_users + RESERVED_SOCK_SET_SOCKETS] = (struct pollfd){.fd = user_sock, .events = POLLIN};
+	sock_set[current_users + RESERVED_SOCK_SET_SOCKETS] = (struct pollfd){
+		.fd = user_sock,
+		.events = POLLIN|POLLERR};
 	current_users++;
 
 	// Conferma la connessione al client inviandogli HELLO
@@ -152,21 +156,8 @@ error:
 	return -1;
 }
 
-void disconnect_user(uint16_t port)
+void disconnect_user(user_list_t *user)
 {
-	port = 0;
-	port = port;
-	// TOUSE
-}
-
-/* ---- HANDLER EVENTI RICEVUTI ---- */
-int handle_QUIT(user_list_t *user, command_t *command)
-{
-	printf("Gestendo disconnessione...\n");
-
-	if (!user || !command)
-		return -1;
-
 	// Passi per disconnesione utente
 	// 1. sposta eventuale carta da doing a To Do
 	card_list_t *card = user->data.handled_card;
@@ -178,6 +169,8 @@ int handle_QUIT(user_list_t *user, command_t *command)
 
 	uint16_t port = ntohs(user->data.sockaddr.sin_port);
 	int fd = user->data.socket;
+	char netaddr[20];
+	inet_ntop(AF_INET, &user->data.sockaddr.sin_addr, netaddr, sizeof(netaddr));
 
 	// 2. rimuovi user dalla lista di utenti
 	pop_elem((list_t *)user);
@@ -185,10 +178,87 @@ int handle_QUIT(user_list_t *user, command_t *command)
 	// 3. rimuovi fd dalla sock_set
 	remove_from_sock_set(fd);
 	close(fd);
-
 	free(user);
+
+	log_line("Utente %s:%d disconnesso\n", netaddr, port);
+}
+
+/* ---- HANDLER EVENTI RICEVUTI ---- */
+int ignore_command(user_list_t *user, command_t *command)
+{
+	(void)(user);
+	(void)(command);
+
 	return 0;
 }
 
-command_handler_t command_handling_table[N_COMMAND_TOKENS] = {
-	[QUIT] = handle_QUIT};
+int handle_QUIT(user_list_t *user, command_t *command)
+{
+	if (!user || !command)
+		return -1;
+
+	disconnect_user(user);
+	return 0;
+}
+
+int handle_CREATE_CARD(user_list_t *user, command_t *command)
+{
+	(void)(user);
+
+	card_list_t *new_card = malloc(sizeof(*new_card));
+	if (!new_card || !command)
+		goto error;
+
+	new_card->card.ID = last_card_id + 1;
+
+	// Recompose message
+	char buf[256];
+	memset(buf, 0, sizeof(buf));
+	char *bufiter = buf;
+	list_t *param_list = &command->param_list;
+	command_arg_list_t *iter = (command_arg_list_t *)command->param_list.next;
+	while ((list_t *)iter != param_list && bufiter < buf + sizeof(buf))
+	{
+		int n = snprintf(bufiter, bufiter - buf + sizeof(buf), "%s ", iter->buffer);
+		bufiter += n; // Escludi terminatore di stringa
+
+		if (n == 0)
+		{
+			break;
+		}
+		iter = (command_arg_list_t *)iter->list.next;
+	}
+
+	new_card->card.mess = malloc(strlen(buf) + 1);
+	if (!new_card->card.mess)
+		goto card_created_error;
+
+	memcpy(new_card->card.mess, buf, strlen(buf) + 1);
+	push_back(&to_do_list, (list_t *)new_card);
+	last_card_id++;
+	show_lavagna_handler();
+	return 0;
+
+	// card_message_created_error:
+	free(new_card->card.mess);
+card_created_error:
+	free(new_card);
+error:
+	return -1;
+}
+
+command_handler_t network_handling_table[N_COMMAND_TOKENS] = {
+	[HELLO] = ignore_command, // Gestito nella routine di accettazione
+	[QUIT] = handle_QUIT,
+	[CREATE_CARD] = handle_CREATE_CARD,
+	[MOVE_CARD] = ignore_command, // Un utente non richiede direttamente lo spostamento
+	[SHOW_LAVAGNA] = NULL,
+	[SEND_USER_LIST] = ignore_command, // Un utente deve inviare REQUEST_USER_LIST
+	[PING_USER] = ignore_command,	   // Non previsto da un utente
+	[PONG_LAVAGNA] = NULL,
+	[HANDLE_CARD] = ignore_command, // Non previsto da un utente
+	[ACK_CARD] = NULL,
+	[REQUEST_USER_LIST] = NULL,
+	[REVIEW_CARD] = ignore_command, // Riservato agli utenti
+	[CARD_DONE] = NULL,
+};

@@ -22,7 +22,10 @@ extern uint32_t current_users;
 
 typedef int (*command_handler_t)(user_list_t *user,command_t* command);
 
-extern command_handler_t command_handling_table[N_COMMAND_TOKENS];
+/**
+ * Tabella di puntatori a funzione per gestire i comandi ricevuti dai client
+ */
+extern command_handler_t network_handling_table[N_COMMAND_TOKENS];
 
 /**
  * @brief crea un socket TCP (`SOCK_STREAM`) e lo fa ascoltare
@@ -32,7 +35,6 @@ extern command_handler_t command_handling_table[N_COMMAND_TOKENS];
  * -1 in caso di errore.
  */
 int init_server();
-
 
 /**
  * @brief trova un utente nella lista di utenti `user_list`.
@@ -54,6 +56,6 @@ int accept_user(int server_fd);
 /**
  * @brief disconnette un utente, rimuovendolo dalla lista di utenti
  */
-void disconnect_user(uint16_t user_port);
+void disconnect_user(user_list_t *user);
 
 #endif
