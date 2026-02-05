@@ -89,68 +89,47 @@ command_token_t find_command_id(const char *command_token)
 	return -1;
 }
 
-void destroy_command_list(command_t *list)
+void destroy_command(command_t *command)
 {
-	if (!list)
-	{
-		return;
-	}
+	if (command->content)
+		free(command->content);
 
-	while (!list_empty(&list->param_list))
-	{
-		command_arg_list_t *elem = (typeof(elem))pop_back(&list->param_list);
-		free(elem->buffer);
-		free(elem);
-	}
+	if (command)
+		free(command);
 }
 
 command_t *parse_command(char *string)
 {
 	command_t *out = malloc(sizeof(*out));
-	out->argc = 0;
-	init_list(&out->param_list);
+	if (!out)
+		goto error;
+	memset(out, 0, sizeof(*out));
 
 	char *tok_state = NULL;
-	char *command = __strtok_r(string, " \n", &tok_state);
-	trim(command);
-	out->command = find_command_id(command);
-	if ((int)out->command == -1)
-		goto error;
 
-	char *tok = __strtok_r(NULL, " ", &tok_state);
-	while (tok)
-	{
-		trim(tok);
-		size_t n = strlen(tok);
+	char *id_token = __strtok_r(string, " \n", &tok_state);
+	trim(id_token);
+	out->id = find_command_id(id_token);
 
-		// +1 per includere il terminatore null ('\0')
-		char *newbuf = malloc(n + 1);
-		if (!newbuf)
-		{
-			goto error;
-		}
+	if ((int)out->id == -1)
+		goto command_created_error;
 
-		memcpy(newbuf, tok, n + 1);
+	size_t n = strlen(tok_state);
 
-		// Crea nuovo elemento nella lista dei comandi
-		command_arg_list_t *newarg = malloc(sizeof(*newarg));
-		if (!newarg)
-		{
-			free(newbuf);
-			goto error;
-		}
-		push_back(&out->param_list, &newarg->list);
+	// +1 per includere il terminatore null ('\0')
+	char *newbuf = malloc(n + 1);
+	if (!newbuf)
+		goto command_created_error;
 
-		newarg->buffer = newbuf;
-		out->argc++;
-		tok = __strtok_r(NULL, " ", &tok_state);
-	}
+	// Copia il resto del comando 
+	memcpy(newbuf, tok_state, n + 1);
+	out->content = newbuf;
 
 	return out;
 
 	// Gestisci errore: libera risorse allocate
+command_created_error:
+	destroy_command(out);
 error:
-	destroy_command_list(out);
-	free(out);
 	return NULL;
 }

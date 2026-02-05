@@ -32,8 +32,9 @@ void init_printing()
 
 void end_printing()
 {
-	// togli finestra di scorrimento e cancella il contenuto dello schermo.
-	printf("\033[r\033[2J");
+	// togli finestra di scorrimento, posiziona il cursore in fondo e 
+	// vai ad una riga nuova
+	printf("\033[r\033[%d;1H\n", console_height);
 	fflush(stdout);
 }
 

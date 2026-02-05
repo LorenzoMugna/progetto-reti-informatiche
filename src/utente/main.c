@@ -2,6 +2,8 @@
 #include <string.h>
 #include <malloc.h>
 #include <assert.h>
+#include <setjmp.h>
+#include <signal.h>
 #include <sys/poll.h>
 
 #include "parsing.h"
@@ -14,6 +16,14 @@ struct test_list
 	list_t list_elem;
 	int info;
 };
+
+
+jmp_buf exit_jump_buffer;
+void exit_handler(int sig)
+{
+	(void)(sig);
+	longjmp(exit_jump_buffer, 1);
+}
 
 void print_list(list_t *b)
 {
@@ -60,13 +70,14 @@ void print_test()
 	end_printing();
 	return;
 }
+
 int main(int argc, char **argv)
 {
+	if(setjmp(exit_jump_buffer) == 1)
+		goto end;
+	signal(SIGINT, exit_handler);
 
-	// print_test();
-	// return 0;
 	short port = 0;
-
 	if (argc == 2)
 	{
 		port = atoi(argv[1]);
@@ -92,6 +103,15 @@ int main(int argc, char **argv)
 
 	char bud[256];
 	init_printing();
+
+	sendf(mysock, "CREATE_CARD test card pipupipu\nciao");
+	sendf(mysock, "SHOW_LAVAGNA");
+	command_t *a = recv_command(mysock);
+	if(a)
+	{
+		log_line(a->content);
+		destroy_command(a);
+	}
 	while(fgets(bud, sizeof(bud), stdin))
 	{
 		log_line("%s", bud);
@@ -102,5 +122,7 @@ int main(int argc, char **argv)
 	end_printing();
 	sendf(mysock, "%s\n\n", str_command_tokens[QUIT]);
 
+end:
+	end_printing();
 	return 0;
 }

@@ -41,9 +41,8 @@ int init_socket(uint16_t port)
 	command_t *command = recv_command(mysock);
 	if (!command)
 		goto socket_made_error;
-	command_token_t command_token = command->command;
-	destroy_command_list(command);
-	free(command);
+	command_token_t command_token = command->id;
+	destroy_command(command);
 
 	if (command_token != HELLO)
 		goto socket_made_error;
@@ -118,22 +117,15 @@ int accept_request(int listener_sock)
 	if (!command)
 		goto sock_created_error;
 
-	if (command->command != REVIEW_CARD) // Interazione non valida
+	if (command->id != REVIEW_CARD) // Interazione non valida
 	{
 		goto command_created_error;
 	}
 
-	if (command->argc < 1) // Mancanza argomento
-	{
-		goto command_created_error;
-	}
-
-	command_arg_list_t *iter = (command_arg_list_t*)command->param_list.next;
-	char *arg = iter->buffer;
-	if (strcmp(arg, "request") == 0)
+	if (strcmp(command->content, "request") == 0)
 	{
 		// TODO: Gestisci richiesta approvazione, spawna il thread...
-	} else if (strcmp(arg, "accept"))
+	} else if (strcmp(command->content, "accept"))
 	{
 		// TODO: gestisci approvazione, registra risposta, controlla
 		// che non siano rimasti altri utenti da cui ricevere la risposta...
@@ -143,13 +135,11 @@ int accept_request(int listener_sock)
 	}
 
 	close(listener_sock); // Connessione non persistente
-	destroy_command_list(command);
-	free(command);
+	destroy_command(command);
 	return 0;
 
 command_created_error:
-	destroy_command_list(command);
-	free(command);
+	destroy_command(command);
 
 sock_created_error:
 	close(listener_sock);

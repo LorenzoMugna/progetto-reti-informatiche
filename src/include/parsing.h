@@ -66,9 +66,8 @@ typedef struct command_arg_list
  */
 typedef struct command
 {
-	command_token_t command; // ID del comando
-	uint8_t argc;			 // Numero di parametri
-	list_t param_list;		 // Lista con valori dei parametri
+	command_token_t id; // ID del comando
+	char *content;
 } command_t;
 
 /**
@@ -82,11 +81,11 @@ command_token_t find_command_id(const char *command_token);
  * (non libera la struttura stessa del comando)
  * @param command il comando con la lista da liberare
  */
-void destroy_command_list(command_t *command);
+void destroy_command(command_t *command);
 
 /**
  * @brief esegue il parsing di un comando ricevuto da terminale;
- * @returns comando parsato (ID comando + lista argomenti) o NULL in caso di errore
+ * @returns comando parsato (ID comando + resto del contenuto) o NULL in caso di errore
  */
 command_t *parse_command(char *command);
 #endif

@@ -1,3 +1,7 @@
+/**
+ * Funzioni e definizioni di tipi atte a gestire lo stato della
+ * lavagna (lista utenti, lista di carte)
+ */
 #ifndef STATE_HANDLER_H
 #define STATE_HANDLER_H
 
@@ -5,10 +9,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "card.h"
 #include "list.h"
 #include "parsing.h"
+#include "timeout-handler.h"
+#include "user.h"
 
 #define MAX_PORT ((1 << 16) - 1)
 
@@ -16,34 +23,38 @@
 extern list_t to_do_list; // Contenitore di `card_list_t`
 extern list_t doing_list; // Contenitore di `card_list_t`
 extern list_t done_list;  // Contenitore di `card_list_t`
-extern list_t user_list;  // Contenitore di `user_list_t`
+extern list_t user_list;  // Contenitore di `user_t`
 
-typedef struct user
-{
-	struct sockaddr_in sockaddr; // Indirizzo dell'utente
-	int socket;					 // FD del socket associato all'utente
-	bool handling_card;			 // se l'utente sta gestendo una carta o meno
-	card_list_t *handled_card;	 // la carta che l'utente sta gestendo
-} user_t;
-
-typedef struct user_list
-{
-	list_t list; // Puntatori per creare la lista
-	user_t data; // Dati dell'utente
-} user_list_t;
 
 // Utente identificato dalla porta: viene usata un array
-// di puntatori a strutture dati user_list_t per un accesso rapido
-extern user_list_t *user_table[MAX_PORT];
+// di puntatori a strutture dati user_t per un accesso rapido
+extern user_t *user_table[MAX_PORT];
+
+/**
+ * @brief Inizializza le variabili di stato
+ */
+void init_state();
 
 /**
  * @brief stampa una lista di card, evidenziando ID, e descrizione dell'attività
- * @param b puntatore alla testa della card_list
+ * @param b puntatore alla testa della card
  */
 void print_cardlist(list_t *b);
 
 /**
- * @brief funzione che implementa il comando `SHOW_LAVAGNA`: le tre colonne sono stampate una dopo l'altra
+ * @brief Costruisce la visualizzazione della lavagna sulla stringa `str`,
+ * su una lunghezza massima di `n` caratteri.
+ */
+void build_lavagna(char *str, size_t n);
+
+/**
+ * @brief Costruisce la lista di utenti attualmente connessi sulla stringa `str`,
+ * su una lunghezza massima di `n` caratteri.
+ */
+void build_user_list(char* str, size_t n);
+
+/**
+ * @brief handler per il comando SHOW_LAVAGNA.
  */
 void show_lavagna_handler();
 

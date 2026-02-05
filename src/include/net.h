@@ -24,7 +24,7 @@ int sendf(int fd, const char* format, ...);
 /**
  * @brief riceve un messaggio dal socket `fd`
  * @note ricordarsi di distruggere il puntatore ricevuto con
- * `destroy_command_list()` e `free()`
+ * `destroy_command()`
  * @returns puntatore al comando parsato o NULL in caso di errore
  */
 command_t *recv_command(int fd);

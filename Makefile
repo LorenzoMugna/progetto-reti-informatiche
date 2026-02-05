@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wextra -Wpedantic -Werror -g
+CFLAGS = -Wall -Wextra -Wpedantic -Werror -g -O0
 CC = gcc
 LDFLAGS = -fsanitize=address
 SRC_DIR = src

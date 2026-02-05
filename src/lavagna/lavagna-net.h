@@ -3,6 +3,7 @@
 
 #include "net.h"
 #include "state-handler.h"
+#include "user.h"
 #include <sys/time.h>
 #include <poll.h>
 
@@ -12,15 +13,21 @@
 
 #define MAX_USERS 256 // Massimo numero di utenti
 
-#define RESERVED_SOCK_SET_SOCKETS 2 // 2 socket riservati (stdin e listening server socket)
-#define RESERVED_STDIN 0
-#define RESERVED_LISTENER 1
+/**
+ * Usata per definire slot riservati nel `sock_set`
+ */
+typedef enum reserved_slots{
+	RESERVED_STDIN, // Input da terminale
+	RESERVED_LISTENER, // Socket per accettare nuove connessioni
+	RESERVED_COMMAND_PIPE, // Comandi sulla pipe da altri thread (gestione timeout)
+	RESERVED_SOCK_SET_SOCKETS
+} reserved_slots_t;
 
-extern struct pollfd sock_set[MAX_USERS]; // set per fare multiplexing I/O sincrono tra
+extern struct pollfd sock_set[RESERVED_SOCK_SET_SOCKETS+MAX_USERS]; // set per fare multiplexing I/O sincrono tra
 										  // tutte le connessioni tcp aperte
 extern uint32_t current_users;
 
-typedef int (*command_handler_t)(user_list_t *user,command_t* command);
+typedef int (*command_handler_t)(user_t *user, command_t* command);
 
 /**
  * Tabella di puntatori a funzione per gestire i comandi ricevuti dai client
@@ -41,7 +48,7 @@ int init_server();
  * 
  * @returns puntatore all'elemento della lista se lo trova, `NULL` altrimenti
  */
-user_list_t *find_user_from_fd(int fd);
+user_t *find_user_from_fd(int fd);
 
 /**
  * @brief accetta un nuovo utente e attende la ricezione di un HELLO
@@ -56,6 +63,6 @@ int accept_user(int server_fd);
 /**
  * @brief disconnette un utente, rimuovendolo dalla lista di utenti
  */
-void disconnect_user(user_list_t *user);
+int disconnect_user(user_t *user);
 
 #endif
