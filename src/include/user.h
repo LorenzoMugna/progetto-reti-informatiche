@@ -20,4 +20,6 @@ user_t *new_user(struct sockaddr_in *sockaddr, int socket);
 
 void destroy_user(user_t *user);
 
+void clear_user_list(list_t *user_list);
+
 #endif

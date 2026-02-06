@@ -21,4 +21,6 @@ card_t *new_card(uint64_t ID, char *desc);
 
 void destroy_card(card_t *card);
 
+void clear_card_list(list_t *card_list);
+
 #endif

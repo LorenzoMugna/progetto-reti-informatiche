@@ -156,6 +156,7 @@ void parse_address(struct sockaddr_in *addr, char *string)
 	}
 	uint16_t port_num = (uint16_t)atoi(port);
 	addr->sin_port = htons(port_num);
+	addr->sin_family = AF_INET;
 
 	inet_pton(AF_INET, address, &addr->sin_addr);
 }

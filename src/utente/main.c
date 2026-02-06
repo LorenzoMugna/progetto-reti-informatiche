@@ -10,6 +10,7 @@
 #include "printing.h"
 #include "list.h"
 #include "utente-net.h"
+#include "utente-cli.h"
 
 struct test_list
 {
@@ -20,10 +21,11 @@ struct test_list
 struct pollfd topoll[3];
 
 jmp_buf exit_jump_buffer;
+int running = 1;
 void exit_handler(int sig)
 {
 	(void)(sig);
-	longjmp(exit_jump_buffer, 1);
+	running = 0;
 }
 
 void print_list(list_t *b)
@@ -102,25 +104,14 @@ int main(int argc, char **argv)
 		return 1;
 	topoll[2] = (struct pollfd){.fd = linstener, .events = POLLIN};
 
-	char bud[256];
 	init_printing();
 
-	sendf(mysock, "CREATE_CARD test card pipupipu\nciao");
-	sendf(mysock, "SHOW_LAVAGNA");
-	command_t *a = recv_command(mysock);
-	if(a)
-	{
-		log_line(a->content);
-		destroy_command(a);
-	}
-
-	while(1)
+	while(running)
 	{
 		poll(topoll, 3, -1);
 		if (topoll[0].revents & POLLIN)
 		{
-			fgets(bud, 256, stdin);
-			sendf(mysock, "%s", bud);
+			cli_event();
 			rewrite_prompt();
 		}
 		if (topoll[1].revents & POLLIN)

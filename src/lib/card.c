@@ -42,3 +42,15 @@ void destroy_card(card_t *card)
 
 	free(card);
 }
+
+void clear_card_list(list_t *card_list)
+{
+	if (!card_list)
+		return;
+
+	while (!list_empty(card_list))
+	{
+		card_t *card = (card_t *)card_list->next;
+		destroy_card(card);
+	}
+}

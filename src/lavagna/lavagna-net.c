@@ -8,6 +8,69 @@
 struct pollfd sock_set[RESERVED_SOCK_SET_SOCKETS + MAX_USERS];
 uint32_t current_users;
 
+int send_card_to_handle(user_t *user, card_t *card)
+{
+	if (!user || !card)
+		goto error;
+
+	// Invia la carta all'utente, assegnala preventivamente
+	// e imposta un timeout per l'ACK_CARD
+	char buf[1024];
+	build_user_list(buf, sizeof(buf), user);
+	int err = sendf(user->socket, "%s %u %s %s",
+					str_command_tokens[HANDLE_CARD],
+					current_users,
+					buf,
+					card->desc);
+	if (err == -1)
+		goto error;
+
+	uint16_t user_port = ntohs(user->sockaddr.sin_port);
+	card->user = user_port;
+	user->timeout_type = TIMEOUT_ACK_CARD;
+	user->next_timeout = time(NULL) + ACK_CARD_TIMEOUT;
+	user->handled_card = card;
+
+	// sposta la carta in doing solo dopo la ricezione dell'ACK_CARD.
+	// in caso di timeout queste modifiche vengono annullate
+	log_line("Inviata carta %u all'utente %u", card->ID, user_port);
+	return 0;
+error:
+	return -1;
+}
+
+void distribute_cards()
+{
+	if (current_users < 2)
+		return;
+
+	// Per ogni utente, se non sta gestendo carte, dagli una carta da fare
+	list_t *iter = user_list.next;
+	list_t *card_iter = to_do_list.next;
+	while (iter != &user_list)
+	{
+		user_t *user = (user_t *)iter;
+		if (user->handled_card)
+		{
+			iter = iter->next;
+			continue;
+		}
+
+		while (card_iter != &to_do_list)
+		{
+			card_t *card = (card_t *)card_iter;
+			if (card->user == 0) // Carta non assegnata
+			{
+				send_card_to_handle(user, card);
+				card_iter = card_iter->next;
+				break;
+			}
+			card_iter = card_iter->next;
+		}
+		iter = iter->next;
+	}
+}
+
 void remove_from_sock_set(int fd)
 {
 	uint32_t w = RESERVED_SOCK_SET_SOCKETS,
@@ -15,16 +78,19 @@ void remove_from_sock_set(int fd)
 	while (r < current_users + RESERVED_SOCK_SET_SOCKETS)
 	{
 		if (sock_set[r].fd == fd)
-			r++;
-		if (r != w)
 		{
-			sock_set[w] = sock_set[r];
+			r++;
+			continue;
 		}
+		if (r != w)
+			sock_set[w] = sock_set[r];
 		r++;
 		w++;
 	}
-	current_users--;
-	memset(&sock_set[current_users + RESERVED_SOCK_SET_SOCKETS], 0, sizeof(sock_set[0]));
+	if (r==w)
+		return;
+	current_users -= (r - w);
+	memset(&sock_set[w], 0, sizeof(sock_set[0])*(r-w));
 }
 
 user_t *find_user_from_fd(int fd)
@@ -136,7 +202,7 @@ int accept_user(int server_fd)
 	// Conferma la connessione al client inviandogli HELLO
 	sendf(user_sock, "%s", str_command_tokens[HELLO]);
 
-	// TODO: assegna nuova carta
+	distribute_cards();
 	return user_sock;
 
 	// Gestione errori
@@ -159,8 +225,11 @@ int disconnect_user(user_t *user)
 		pop_elem(&card->list);
 		push_back(&to_do_list, &card->list);
 		card->user = 0;
+
+		// Prova a riassegnare la carta
+		distribute_cards();
 	}
-	// TODO riassegna carta se possibile
+
 
 	uint16_t user_port = ntohs(user->sockaddr.sin_port);
 	int user_socket = user->socket;
@@ -174,7 +243,7 @@ int disconnect_user(user_t *user)
 	int err = sendf(user_socket, "%s", str_command_tokens[QUIT]);
 
 	// 2. rimuovi user dalla lista di utenti
-	memset(&user_table[user_port], 0, sizeof(user_table[user_port]));
+	user_table[user_port] = NULL;
 
 	// 3. rimuovi fd dalla sock_set
 	remove_from_sock_set(user_socket);
@@ -182,39 +251,11 @@ int disconnect_user(user_t *user)
 	destroy_user(user);
 
 	log_line("Utente %s:%d disconnesso\n", netaddr, user_port);
+
+
 	return err; // ritorna lo stato della sendf
 }
 
-int send_card_to_handle(user_t *user, card_t *card)
-{
-	if (!user || !card)
-		goto error;
-
-	// Invia la carta all'utente, assegnala preventivamente
-	// e imposta un timeout per l'ACK_CARD
-	char buf[1024];
-	build_user_list(buf, sizeof(buf), user);
-	int err = sendf(user->socket, "%s %u %s %s",
-					str_command_tokens[HANDLE_CARD],
-					current_users,
-					buf,
-					card->desc);
-	if (err == -1)
-		goto error;
-
-	uint16_t user_port = ntohs(user->sockaddr.sin_port);
-	card->user = user_port;
-	user->timeout_type = TIMEOUT_ACK_CARD;
-	user->next_timeout = time(NULL) + ACK_CARD_TIMEOUT;
-	user->handled_card = card;
-
-	// sposta la carta in doing solo dopo la ricezione dell'ACK_CARD.
-	// in caso di timeout queste modifiche vengono annullate
-	log_line("Inviata carta %u all'utente %u", card->ID, user_port);
-	return 0;
-error:
-	return -1;
-}
 
 /* ---- HANDLER EVENTI RICEVUTI ---- */
 int ignore_command(user_t *user, command_t *command)
@@ -249,7 +290,8 @@ int handle_CREATE_CARD(user_t *user, command_t *command)
 	last_card_id++;
 
 	show_lavagna_handler();
-	// TODO: assegna la carta appena creata
+
+	distribute_cards();
 	return 0;
 error:
 	return -1;
@@ -289,6 +331,7 @@ int handle_PONG_LAVAGNA(user_t *user, command_t *command)
 
 	user->timeout_type = TIMEOUT_PING_UTENTE;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
+	return 0;
 
 error:
 	return -1;
@@ -300,25 +343,26 @@ int handle_ACK_CARD(user_t *user, command_t *command)
 
 	if (!user)
 		goto error;
-	
+
 	// Non stavamo aspettando una ACK_CARD dall'utente attuale
 	if (user->timeout_type != TIMEOUT_ACK_CARD)
 		goto error;
-	
-	
+
 	// Finalizza la procedura spostando la carta nella doing list
 	card_t *card = user->handled_card;
 	pop_elem(&card->list);
 	push_back(&doing_list, &card->list);
 	card->last_changed = time(NULL);
 
+	log_line("L'utente %u ha preso in gestione la carta %u\n", ntohs(user->sockaddr.sin_port), card->ID);
 	// Imposta un timeout per un ping utente
 	user->timeout_type = TIMEOUT_PING_UTENTE;
-	user->next_timeout = time(NULL)+PING_TIMEOUT;
+	user->next_timeout = time(NULL) + PING_TIMEOUT;
 
 	return 0;
 
 error:
+	log_line("ACK_CARD non valido da utente %u\n", ntohs(user->sockaddr.sin_port));
 	return -1;
 }
 
@@ -326,9 +370,11 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 {
 	(void)command;
 
+	log_line("inviando lista...\n");
+	;
 	if (!user)
 		goto error;
-
+	log_line("utente valido\n");
 	int user_socket_fd = user->socket;
 
 	char buf[1024];
@@ -340,9 +386,12 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 
 	if (err == -1)
 		goto error;
+
+	log_line("Lista utenti inviata\n");
 	return 0;
 
 error:
+	log_line("errore nell'invio della lista\n");
 	return -1;
 }
 
@@ -368,6 +417,7 @@ int handle_CARD_DONE(user_t *user, command_t *command)
 	user->next_timeout = 0;
 
 	// TODO: assegna nuova carta
+	return 0;
 error:
 	return -1;
 }

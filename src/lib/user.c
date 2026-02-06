@@ -30,3 +30,15 @@ void destroy_user(user_t *user)
 	close(user->socket);
 	free(user);
 }
+
+void clear_user_list(list_t *user_list)
+{
+	if (!user_list)
+		return;
+
+	while (!list_empty(user_list))
+	{
+		user_t *user = (user_t *)user_list->next;
+		destroy_user(user);
+	}
+}

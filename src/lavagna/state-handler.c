@@ -117,19 +117,19 @@ void show_lavagna_handler()
 
 void build_user_list(char *str, size_t n, user_t *excluded_user)
 {
-	user_t *user = (user_t *)user_list.next;
 	size_t printed;
-	while (&user->list != &user_list && n > 0)
+	user_t *user = (user_t *)user_list.next;
+	for (;&user->list != &user_list && n > 0;user = (user_t *)user->list.next)
 	{
+		
 		if (user == excluded_user)
 			continue;
 		uint16_t port = ntohs(user->sockaddr.sin_port);
 		char inet_buffer[20];
 		inet_ntop(AF_INET, &user->sockaddr.sin_addr, inet_buffer, sizeof(inet_buffer));
 		printed = snprintf_wrapper(str, n, "%s:%u ", inet_buffer, port);
+		log_line("%s\n", str);
 		str += printed;
 		n -= printed;
-
-		user = (user_t *)user->list.next;
 	}
 }

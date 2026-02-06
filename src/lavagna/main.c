@@ -30,13 +30,6 @@ void parse_test()
 	destroy_command(test);
 }
 
-void free_card_list(list_t *list){
-	while(!list_empty(list))
-	{
-		card_t *card = (card_t*)list->next;
-		destroy_card(card);
-	}
-}
 
 void card_test()
 {
@@ -127,7 +120,7 @@ int main()
 				uint16_t port = ntohs(last_user->sockaddr.sin_port);
 				char netaddr[20];
 				inet_ntop(AF_INET, &last_user->sockaddr.sin_addr, netaddr, sizeof(netaddr));
-				log_line("New User! (%d) %s:%u\n", current_users, netaddr, port);
+				log_line("New User! (%d) %s:%hu\n", current_users, netaddr, port);
 				break;
 
 			default: // Gestione di un comando ricevuto da un utente
@@ -136,7 +129,7 @@ int main()
 				command_t *command = recv_command(sock_set[i].fd);
 				if (!command)
 				{
-					fprintf(stderr, "Errore nella struttura del comando");
+					log_line("Errore nella struttura del comando\n");
 					user_t *user = find_user_from_fd(sock_set[i].fd);
 					disconnect_user(user);
 					break;
@@ -167,9 +160,15 @@ int main()
 
 	//Routine di uscita, raggiunta tramite longjmp (vedi exit_handler)
 end:
-	free_card_list(&to_do_list);
-	free_card_list(&doing_list);
-	free_card_list(&done_list);
+	clear_card_list(&to_do_list);
+	clear_card_list(&doing_list);
+	clear_card_list(&done_list);
+	for(user_t *it = (user_t *)user_list.next; it != (user_t *)&user_list; )
+	{
+		user_t *next = (user_t *)it->list.next;
+		disconnect_user(it);
+		it = next;
+	}
 	end_printing(); // ripristina la finestra
 	return 0;
 }

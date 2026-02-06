@@ -27,6 +27,10 @@ typedef enum user_state
 	STATE_DONE				 // L'utente ha finito e può mandare CARD_DONE
 } user_state_t;
 
+extern user_state_t current_user_state;
+extern int my_socket;
+extern struct sockaddr_in my_address;
+
 extern network_handler_t network_handlers[N_COMMAND_TOKENS];
 
 typedef struct useraddr{
@@ -37,6 +41,8 @@ typedef struct useraddr{
 useraddr_t *new_useraddr();
 
 void destroy_useraddr(useraddr_t *useraddr);
+
+void clear_useraddr_list(list_t *useraddr_list);
 
 /**
  * @brief Inizializza un socket per il client
