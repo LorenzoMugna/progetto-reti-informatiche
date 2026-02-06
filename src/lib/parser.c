@@ -4,6 +4,7 @@
  */
 #include "parser.h"
 
+#include <arpa/inet.h>
 #include <malloc.h>
 #include <string.h>
 
@@ -132,4 +133,29 @@ command_created_error:
 	destroy_command(out);
 error:
 	return NULL;
+}
+
+void parse_address(struct sockaddr_in *addr, char *string)
+{
+	char address[32];
+	char port[8];
+
+	for (uint32_t i = 0; i<sizeof(address) && *string; i++, string++)
+	{
+		if (*string == ':')
+		{
+			string++;
+			break;
+		}
+		address[i] = *string;
+	}
+
+	for (uint32_t i = 0; i<sizeof(port) && *string; i++, string++)
+	{
+		port[i] = *string;
+	}
+	uint16_t port_num = (uint16_t)atoi(port);
+	addr->sin_port = htons(port_num);
+
+	inet_pton(AF_INET, address, &addr->sin_addr);
 }

@@ -8,6 +8,7 @@
 
 #include "list.h"
 
+#include <arpa/inet.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -88,4 +89,11 @@ void destroy_command(command_t *command);
  * @returns comando parsato (ID comando + resto del contenuto) o NULL in caso di errore
  */
 command_t *parse_command(char *command);
+
+/**
+ * @brief permette di ricavare un indirizzo `AF_INET` da
+ * una stringa della forma `xxx.xxx.xxx.xxx:xxxxx`,
+ * `indirizzo:porta`
+ */
+void parse_address(struct sockaddr_in *addr, char *string);
 #endif

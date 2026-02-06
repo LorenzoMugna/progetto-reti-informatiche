@@ -49,9 +49,11 @@ void build_lavagna(char *str, size_t n);
 
 /**
  * @brief Costruisce la lista di utenti attualmente connessi sulla stringa `str`,
- * su una lunghezza massima di `n` caratteri.
+ * su una lunghezza massima di `n` caratteri. È possibile escludere un utente
+ * dalla lista passando il suo descrittore in `excluded_port`
+ * 
  */
-void build_user_list(char* str, size_t n);
+void build_user_list(char* str, size_t n, user_t *excluded_user);
 
 /**
  * @brief handler per il comando SHOW_LAVAGNA.

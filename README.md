@@ -67,13 +67,16 @@ Da quello che ho capito completamente deterministico (non c'è veramente un uten
 
 
 # TODO
+Crea helpstring e viualizzala nello startup
+
 Lavagna:
-- gestione errori send (fai una common-net per primitive safe)
-- Multiplexing I/O fatto bene
-- gestione comandi da terminale
-    - visualizza help string
+- ~~gestione errori send (fai una common-net per primitive safe)~~
+- ~~Multiplexing I/O fatto bene~~
+- gestione comandi da terminale (cli-handlers)
 
 Client:
 - Un client non deve poter uscire se sta facendo una review
+- gestione comandi da terminale (cli-handlers)
+- gestione richieste di review
 
 

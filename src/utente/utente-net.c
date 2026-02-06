@@ -1,11 +1,44 @@
 #include <sys/select.h>
+#include <signal.h>
 
 #include "utente-net.h"
+#include "card.h"
 #include "parsing.h"
+#include "printing.h"
+
+int my_socket;
+struct sockaddr_in my_address;
+user_state_t current_user_state;
+card_t *handled_card;
+list_t missing_reviews;
+
+useraddr_t *new_useraddr()
+{
+	useraddr_t *useraddr = malloc(sizeof(useraddr_t));
+	if (!useraddr)
+		goto error;
+
+	init_list(&useraddr->list);
+	return useraddr;
+error:
+	return NULL;
+}
+
+void destroy_useraddr(useraddr_t *useraddr)
+{
+	if (!useraddr)
+		return;
+
+	pop_elem(&useraddr->list);
+	free(useraddr);
+}
 
 int init_socket(uint16_t port)
 {
 	port = htons(port);
+
+	current_user_state = STATE_IDLE;
+	handled_card = NULL;
 
 	int mysock = socket(AF_INET, SOCK_STREAM, 0);
 	if (mysock == -1)
@@ -17,25 +50,26 @@ int init_socket(uint16_t port)
 	if (ret == -1)
 		goto socket_made_error;
 
-	struct sockaddr_in myaddr;
-	myaddr.sin_family = AF_INET;
-	myaddr.sin_addr.s_addr = INADDR_ANY;
-	myaddr.sin_port = port;
+	my_address.sin_family = AF_INET;
+	my_address.sin_addr.s_addr = INADDR_ANY;
+	my_address.sin_port = port;
 
-	ret = bind(mysock, (struct sockaddr *)&myaddr, sizeof(myaddr));
+	ret = bind(mysock, (struct sockaddr *)&my_address, sizeof(my_address));
 	if (ret == -1)
 		goto socket_made_error;
 
-	struct sockaddr_in servaddr;
-	inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(5678);
+	struct sockaddr_in server_addr;
+	inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(5678);
 
-	ret = connect(mysock, (struct sockaddr *)&servaddr, sizeof(servaddr));
+	ret = connect(mysock, (struct sockaddr *)&server_addr, sizeof(server_addr));
 	if (ret == -1)
 		goto socket_made_error;
 
-	sendf(mysock, "%s", str_command_tokens[HELLO]);
+	ret = sendf(mysock, "%s", str_command_tokens[HELLO]);
+	if (ret == -1)
+		goto socket_made_error;
 
 	// Aspetta conferma dal server
 	command_t *command = recv_command(mysock);
@@ -47,6 +81,7 @@ int init_socket(uint16_t port)
 	if (command_token != HELLO)
 		goto socket_made_error;
 
+	my_socket = mysock;
 	return mysock;
 
 	// Gestione dell'errore
@@ -56,7 +91,7 @@ error:
 	return -1;
 }
 
-int init_listener_socket(uint16_t port)
+int init_listener_socket()
 {
 
 	int listener_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -68,12 +103,7 @@ int init_listener_socket(uint16_t port)
 	if (ret == -1)
 		goto socket_made_error;
 
-	struct sockaddr_in myaddr;
-	myaddr.sin_family = AF_INET;
-	myaddr.sin_addr.s_addr = INADDR_ANY;
-	myaddr.sin_port = port;
-
-	ret = bind(listener_sock, (struct sockaddr *)&myaddr, sizeof(myaddr));
+	ret = bind(listener_sock, (struct sockaddr *)&my_address, sizeof(my_address));
 	if (ret == -1)
 		goto socket_made_error;
 
@@ -125,15 +155,34 @@ int accept_request(int listener_sock)
 	if (strcmp(command->content, "request") == 0)
 	{
 		// TODO: Gestisci richiesta approvazione, spawna il thread...
-	} else if (strcmp(command->content, "accept"))
+
+	}
+	else if (strcmp(command->content, "accept") == 0)
 	{
-		// TODO: gestisci approvazione, registra risposta, controlla
-		// che non siano rimasti altri utenti da cui ricevere la risposta...
-	}else
+		if (current_user_state != STATE_REVIEWING)
+			goto command_created_error;
+		// Rimuovi utente dalla lista di review mancanti
+		for (list_t *it = missing_reviews.next; it != &missing_reviews; it = it->next)
+		{
+			useraddr_t *it_useraddr = (useraddr_t *)it;	
+			if (it_useraddr->user_address.sin_port == useraddr.sin_port)
+			{
+				pop_elem(&it_useraddr->list);
+				destroy_useraddr(it_useraddr);
+				break;
+			}
+		}
+	}
+	else
 	{
 		fprintf(stderr, "Formato non valido per REVIEW_CARD");
 	}
 
+	if (list_empty(&missing_reviews))
+	{
+		current_user_state = STATE_DONE;
+	}
+	//Manda in automatico? boh
 	close(listener_sock); // Connessione non persistente
 	destroy_command(command);
 	return 0;
@@ -147,3 +196,156 @@ sock_created_error:
 error:
 	return -1;
 }
+/* ---- USER NETWORK HANDLERS ----*/
+command_token_t expected_from_lavagna;
+
+int ignore_command(command_t *command)
+{
+	(void)command;
+	return 0;
+}
+
+int handle_QUIT(command_t *command)
+{
+	(void)command;
+
+	// Termina semplicemente l'esecuzione.
+	// La lavagna gestisce lo stato.
+	pid_t pid = getpid();
+	kill(pid, SIGINT);
+	return 0;
+}
+
+int handle_SHOW_LAVAGNA(command_t *command)
+{
+	// if (expected_from_lavagna != SHOW_LAVAGNA)
+	// 	goto error;
+
+	if (!command)
+		goto error;
+
+	log_line(command->content);
+	expected_from_lavagna = -1;
+	return 0;
+error:
+	return -1;
+}
+
+int handle_SEND_USER_LIST(command_t *command)
+{
+	if (!command || !command->content)
+		goto error;
+
+	if (current_user_state != STATE_GETTING_USER_LIST)
+		goto error;
+
+	char *tok_state = NULL;
+	char *tok = __strtok_r(command->content, " ", &tok_state);
+	uint32_t n_users = atoi(tok);
+	for (uint32_t i = 0; i < n_users; i++)
+	{
+		tok = __strtok_r(NULL, " ", &tok_state);
+		if (!tok)
+			goto error;
+
+		useraddr_t *useraddr = new_useraddr();
+		if (!useraddr)
+			goto error;
+
+		parse_address(&useraddr->user_address, tok);
+		push_back(&missing_reviews, &useraddr->list);
+	}
+
+	current_user_state = STATE_REVIEWING;
+	for (list_t *it = missing_reviews.next; it != &missing_reviews; it = it->next)
+	{
+		// TODO: meno pigro
+		useraddr_t *useraddr = (useraddr_t *)it;
+
+		int newsock = socket(AF_INET, SOCK_STREAM, 0);
+		setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
+		bind(newsock, (struct sockaddr *)&my_address, sizeof(my_address));
+		connect(newsock, (struct sockaddr *)&useraddr->user_address, sizeof(useraddr->user_address));
+		while (
+			sendf(newsock, "%s request",
+				  str_command_tokens[REVIEW_CARD]) != -1)
+			;
+	
+		close(newsock);
+	}
+	return 0;
+
+error:
+	return -1;
+}
+
+int handle_PING_USER(command_t *command)
+{
+	(void)command;
+
+	int err = sendf(my_socket, "%s ", str_command_tokens[PONG_LAVAGNA]);
+	if (err == -1)
+		goto error;
+	return 0;
+
+error:
+	return -1;
+}
+
+int handle_HANDLE_CARD(command_t *command)
+{
+	if (!command || !command->content)
+		goto error;
+
+	// Rifiuta una carta se ne sto gestendo un'altra
+	if (current_user_state != STATE_IDLE)
+		goto error;
+
+	// Parsa contenuto del comando
+	//  1. Numero di utenti
+	char *tok_state = NULL;
+	char *tok = __strtok_r(command->content, " ", &tok_state);
+	uint32_t n_users = atoi(tok);
+
+	// 2. porte degli utenti
+	for (uint32_t i = 0; i < n_users - 1; i++)
+	{
+		tok = __strtok_r(NULL, " ", &tok_state);
+
+		// Comando malformato (e.g. numero di utenti troppo alto)
+		if (!tok)
+			goto error;
+
+		// Scarta lista utenti; tanto al momento
+		// della review viene richiesta nuovamente ¯\_(ツ)_/¯
+	}
+	// Comando malformato (e.g. numero di utenti troppo alto)
+	if (!tok_state)
+		goto error;
+
+	int err = sendf(my_socket, "%s ", str_command_tokens[ACK_CARD]);
+	if (err == -1)
+		goto error;
+
+	current_user_state = STATE_HANDLING;
+	handled_card = new_card(0, tok_state);
+	return 0;
+
+error:
+	return -1;
+}
+
+network_handler_t network_handlers[N_COMMAND_TOKENS] = {
+	[HELLO] = ignore_command,
+	[QUIT] = handle_QUIT,
+	[CREATE_CARD] = ignore_command,
+	[MOVE_CARD] = ignore_command,
+	[SHOW_LAVAGNA] = handle_SHOW_LAVAGNA,
+	[SEND_USER_LIST] = handle_SEND_USER_LIST,
+	[PING_USER] = handle_PING_USER,
+	[PONG_LAVAGNA] = ignore_command,
+	[HANDLE_CARD] = handle_HANDLE_CARD,
+	[ACK_CARD] = ignore_command,
+	[REQUEST_USER_LIST] = ignore_command,
+	[REVIEW_CARD] = ignore_command,
+	[CARD_DONE] = ignore_command};

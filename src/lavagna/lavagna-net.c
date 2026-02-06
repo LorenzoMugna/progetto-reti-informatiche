@@ -160,6 +160,7 @@ int disconnect_user(user_t *user)
 		push_back(&to_do_list, &card->list);
 		card->user = 0;
 	}
+	// TODO riassegna carta se possibile
 
 	uint16_t user_port = ntohs(user->sockaddr.sin_port);
 	int user_socket = user->socket;
@@ -182,6 +183,37 @@ int disconnect_user(user_t *user)
 
 	log_line("Utente %s:%d disconnesso\n", netaddr, user_port);
 	return err; // ritorna lo stato della sendf
+}
+
+int send_card_to_handle(user_t *user, card_t *card)
+{
+	if (!user || !card)
+		goto error;
+
+	// Invia la carta all'utente, assegnala preventivamente
+	// e imposta un timeout per l'ACK_CARD
+	char buf[1024];
+	build_user_list(buf, sizeof(buf), user);
+	int err = sendf(user->socket, "%s %u %s %s",
+					str_command_tokens[HANDLE_CARD],
+					current_users,
+					buf,
+					card->desc);
+	if (err == -1)
+		goto error;
+
+	uint16_t user_port = ntohs(user->sockaddr.sin_port);
+	card->user = user_port;
+	user->timeout_type = TIMEOUT_ACK_CARD;
+	user->next_timeout = time(NULL) + ACK_CARD_TIMEOUT;
+	user->handled_card = card;
+
+	// sposta la carta in doing solo dopo la ricezione dell'ACK_CARD.
+	// in caso di timeout queste modifiche vengono annullate
+	log_line("Inviata carta %u all'utente %u", card->ID, user_port);
+	return 0;
+error:
+	return -1;
 }
 
 /* ---- HANDLER EVENTI RICEVUTI ---- */
@@ -253,10 +285,38 @@ int handle_PONG_LAVAGNA(user_t *user, command_t *command)
 	// Reagisci ad un PONG_LAVAGNA reimpostando un timeout PING_UTENTE
 	// ma solo se si stava effettivamente aspettando un PONG_LAVAGNA
 	if (user->timeout_type != TIMEOUT_PONG_LAVAGNA)
-		return 0;
-	
+		goto error;
+
 	user->timeout_type = TIMEOUT_PING_UTENTE;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
+
+error:
+	return -1;
+}
+
+int handle_ACK_CARD(user_t *user, command_t *command)
+{
+	(void)command;
+
+	if (!user)
+		goto error;
+	
+	// Non stavamo aspettando una ACK_CARD dall'utente attuale
+	if (user->timeout_type != TIMEOUT_ACK_CARD)
+		goto error;
+	
+	
+	// Finalizza la procedura spostando la carta nella doing list
+	card_t *card = user->handled_card;
+	pop_elem(&card->list);
+	push_back(&doing_list, &card->list);
+	card->last_changed = time(NULL);
+
+	// Imposta un timeout per un ping utente
+	user->timeout_type = TIMEOUT_PING_UTENTE;
+	user->next_timeout = time(NULL)+PING_TIMEOUT;
+
+	return 0;
 
 error:
 	return -1;
@@ -272,8 +332,12 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 	int user_socket_fd = user->socket;
 
 	char buf[1024];
-	build_user_list(buf, sizeof(buf));
-	int err = sendf(user_socket_fd, "%s %s", str_command_tokens[SEND_USER_LIST], buf);
+	build_user_list(buf, sizeof(buf), user);
+	int err = sendf(user_socket_fd, "%s %u %s",
+					str_command_tokens[SEND_USER_LIST],
+					current_users,
+					buf);
+
 	if (err == -1)
 		goto error;
 	return 0;
@@ -318,7 +382,7 @@ command_handler_t network_handling_table[N_COMMAND_TOKENS] = {
 	[PING_USER] = ignore_command,	   // Non previsto da un utente
 	[PONG_LAVAGNA] = handle_PONG_LAVAGNA,
 	[HANDLE_CARD] = ignore_command, // Non previsto da un utente
-	[ACK_CARD] = NULL,
+	[ACK_CARD] = handle_ACK_CARD,
 	[REQUEST_USER_LIST] = handle_REQUEST_USER_LIST,
 	[REVIEW_CARD] = ignore_command, // Riservato agli utenti
 	[CARD_DONE] = handle_CARD_DONE,

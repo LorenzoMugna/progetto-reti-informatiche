@@ -17,6 +17,7 @@ struct test_list
 	int info;
 };
 
+struct pollfd topoll[3];
 
 jmp_buf exit_jump_buffer;
 void exit_handler(int sig)
@@ -77,6 +78,8 @@ int main(int argc, char **argv)
 		goto end;
 	signal(SIGINT, exit_handler);
 
+	topoll[0] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
+
 	short port = 0;
 	if (argc == 2)
 	{
@@ -91,15 +94,13 @@ int main(int argc, char **argv)
 
 	int mysock = init_socket(port);
 	if (mysock == -1)
-	{
 		return 1;
-	}
+	topoll[1] = (struct pollfd){.fd = mysock, .events = POLLIN};
 
-	int linstener = init_listener_socket(port);
+	int linstener = init_listener_socket();
 	if (linstener == -1)
-	{
 		return 1;
-	}
+	topoll[2] = (struct pollfd){.fd = linstener, .events = POLLIN};
 
 	char bud[256];
 	init_printing();
@@ -112,17 +113,34 @@ int main(int argc, char **argv)
 		log_line(a->content);
 		destroy_command(a);
 	}
-	while(fgets(bud, sizeof(bud), stdin))
+
+	while(1)
 	{
-		log_line("%s", bud);
-		sendf(mysock, "%s", bud);
-		rewrite_prompt();
+		poll(topoll, 3, -1);
+		if (topoll[0].revents & POLLIN)
+		{
+			fgets(bud, 256, stdin);
+			sendf(mysock, "%s", bud);
+			rewrite_prompt();
+		}
+		if (topoll[1].revents & POLLIN)
+		{
+			command_t *command = recv_command(mysock);
+			if (command && network_handlers[command->id])
+			{
+				network_handlers[command->id](command);
+			}
+			destroy_command(command);
+		}
+		if (topoll[2].revents & POLLIN)
+		{
+			accept_request(linstener);
+		}
 	}
 
-	end_printing();
-	sendf(mysock, "%s\n\n", str_command_tokens[QUIT]);
 
 end:
+	sendf(mysock, "%s\n\n", str_command_tokens[QUIT]);
 	end_printing();
 	return 0;
 }

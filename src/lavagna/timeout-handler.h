@@ -9,9 +9,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define POLLING_PERIOD 5
-#define PING_TIMEOUT 90
-#define PONG_TIMEOUT 30
 
 
 extern int command_pipe[2];
