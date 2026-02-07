@@ -140,6 +140,8 @@ void parse_address(struct sockaddr_in *addr, char *string)
 	char address[32];
 	char port[8];
 
+	memset(address, 0, sizeof(address));
+	memset(port, 0, sizeof(port));
 	for (uint32_t i = 0; i<sizeof(address) && *string; i++, string++)
 	{
 		if (*string == ':')

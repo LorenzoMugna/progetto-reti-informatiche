@@ -67,16 +67,23 @@ Da quello che ho capito completamente deterministico (non c'è veramente un uten
 
 
 # TODO
+Refactor
+fixa bug per cui non vengono disconnessi gli utenti alla fine
+Cleanliness delle interazioni (la lavagna deve essere mostrata nuovamente ad ogni interazione etc. etc.)
 Crea helpstring e viualizzala nello startup
+Documentazione
+
+
 
 Lavagna:
 - ~~gestione errori send (fai una common-net per primitive safe)~~
 - ~~Multiplexing I/O fatto bene~~
 - gestione comandi da terminale (cli-handlers)
+- poll dei timeout
 
 Client:
-- Un client non deve poter uscire se sta facendo una review
-- gestione comandi da terminale (cli-handlers)
+- ~~Un client non deve poter uscire se sta facendo una review~~
+- ~~gestione comandi da terminale (cli-handlers)~~
 - gestione richieste di review
 
 

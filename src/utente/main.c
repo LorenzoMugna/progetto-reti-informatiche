@@ -76,8 +76,6 @@ void print_test()
 
 int main(int argc, char **argv)
 {
-	if(setjmp(exit_jump_buffer) == 1)
-		goto end;
 	signal(SIGINT, exit_handler);
 
 	topoll[0] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
@@ -116,7 +114,8 @@ int main(int argc, char **argv)
 		}
 		if (topoll[1].revents & POLLIN)
 		{
-			command_t *command = recv_command(mysock);
+			command_t *command;
+			recv_command(mysock, &command);
 			if (command && network_handlers[command->id])
 			{
 				network_handlers[command->id](command);
@@ -130,7 +129,6 @@ int main(int argc, char **argv)
 	}
 
 
-end:
 	sendf(mysock, "%s\n\n", str_command_tokens[QUIT]);
 	end_printing();
 	return 0;

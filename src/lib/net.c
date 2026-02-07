@@ -42,7 +42,7 @@ int sendf(int fd, const char *format, ...)
 	return err;
 }
 
-command_t *recv_command(int fd)
+int recv_command(int fd, command_t **out)
 {
 	int ret = recv(fd, &message_buffer, sizeof(message_buffer.content_length), 0);
 	if (ret < (int) sizeof(message_buffer.content_length))
@@ -55,9 +55,10 @@ command_t *recv_command(int fd)
 		goto error;
 
 	message_buffer.netbuffer[_NETBUFFER_SIZE] = '\0';
-	return parse_command(message_buffer.netbuffer);
+	*out = parse_command(message_buffer.netbuffer);
+	return 0;
 
 error:
-	log_line("Errore nella ricezione del messaggio");
-	return NULL;
+	*out = NULL;
+	return -1;
 }

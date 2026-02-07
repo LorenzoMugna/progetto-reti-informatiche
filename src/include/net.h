@@ -22,11 +22,21 @@ int sendf(int fd, const char* format, ...);
 
 
 /**
- * @brief riceve un messaggio dal socket `fd`
+ * @brief riceve un messaggio dal socket `fd` e parsa il comando ricevuto.
+ * 
+ * Se c'è stato un errore nella ricezione, `out` viene impostato a `NULL`
+ * e ritorna -1.
+ * 
+ * Se invece c'è stato un errore solo nel parsing, `out` viene impostato
+ * a `NULL` ma ritorna 0.
+ * 
  * @note ricordarsi di distruggere il puntatore ricevuto con
  * `destroy_command()`
- * @returns puntatore al comando parsato o NULL in caso di errore
+ * 
+ * @returns 0 se la ricezione è andata a buon fine, -1 altrimenti. 
+ * Il comando ricevuto viene restituito tramite il parametro `out`.
+ * Se c'è stato una errore nel parsing del comando, `out` viene impostato a `NULL`.
  */
-command_t *recv_command(int fd);
+int recv_command(int fd, command_t **out);
 
 #endif

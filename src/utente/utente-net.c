@@ -60,8 +60,7 @@ int init_socket(uint16_t port)
 		goto error;
 
 	// Permetti di riusare la stessa porta dopo poco tempo
-	int one = 1;
-	int ret = setsockopt(mysock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+	int ret = setsockopt(mysock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
 		setsockopt(mysock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
 	if (ret == -1)
 		goto socket_made_error;
@@ -88,7 +87,8 @@ int init_socket(uint16_t port)
 		goto socket_made_error;
 
 	// Aspetta conferma dal server
-	command_t *command = recv_command(mysock);
+	command_t *command;
+	recv_command(mysock, &command);
 	if (!command)
 		goto socket_made_error;
 	command_token_t command_token = command->id;
@@ -189,7 +189,8 @@ int accept_request(int listener_sock)
 		goto sock_created_error;
 	}
 
-	command_t *command = recv_command(user_sock);
+	command_t *command;
+	recv_command(user_sock, &command);
 
 	if (!command)
 		goto sock_created_error;

@@ -126,12 +126,18 @@ int main()
 			default: // Gestione di un comando ricevuto da un utente
 
 				int command_id = -1;
-				command_t *command = recv_command(sock_set[i].fd);
+				command_t *command;
+				int status = recv_command(sock_set[i].fd, &command);
+				if (status == -1)
+				{
+					log_line("Errore nella ricezione del comando da parte dell'utente associato al file descriptor %d\n", fd);
+					disconnect_user(find_user_from_fd(fd));
+					break;
+				}
+
 				if (!command)
 				{
-					log_line("Errore nella struttura del comando\n");
-					user_t *user = find_user_from_fd(sock_set[i].fd);
-					disconnect_user(user);
+					log_line("Comando malformato\n");
 					break;
 				}
 

@@ -5,7 +5,9 @@
             "includePath": [
                 "/home/sharplorren/Documents/Uni/reti-informatiche/progetto-reti-informatiche/src/include/**"
             ],
-            "defines": [],
+            "defines": [
+                "_GNU_SOURCE"
+            ],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
             "cppStandard": "c++17",
@@ -15,7 +17,14 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": true
             },
-			"compilerArgs": ["-Wall", "-Wextra", "-Wpedantic", "-Werror", "-g", "-fsanitize=address"]
+            "compilerArgs": [
+                "-Wall",
+                "-Wextra",
+                "-Wpedantic",
+                "-Werror",
+                "-g",
+                "-fsanitize=address"
+            ]
         }
     ],
     "version": 4

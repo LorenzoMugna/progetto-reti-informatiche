@@ -169,7 +169,8 @@ int accept_user(int server_fd)
 		goto sock_created_error;
 
 	// Parsa comando e controlla che sia un HELLO
-	command_t *command = recv_command(user_sock);
+	command_t *command;
+	recv_command(user_sock, &command);
 	if (!command)
 		goto sock_created_error;
 	command_token_t command_id = command->id;
@@ -359,6 +360,7 @@ int handle_ACK_CARD(user_t *user, command_t *command)
 	user->timeout_type = TIMEOUT_PING_UTENTE;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
 
+	show_lavagna_handler();
 	return 0;
 
 error:

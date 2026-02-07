@@ -63,8 +63,6 @@ int cli_handle_CREATE_CARD(command_t *command)
 	if (err == -1)
 		goto error;
 
-	cli_handle_SHOW_LAVAGNA(command);
-
 	return 0;
 error:
 	return -1;
