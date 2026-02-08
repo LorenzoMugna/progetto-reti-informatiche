@@ -26,7 +26,6 @@ void init_printing()
 	// e stampa il prompt per il comando
 	get_console_height();
 	printf("\033[2J\033[1;%dr", console_height - 1);
-	rewrite_prompt();
 	fflush(stdout);
 }
 
@@ -38,11 +37,16 @@ void end_printing()
 	fflush(stdout);
 }
 
-void rewrite_prompt()
+void rewrite_prompt(const char* prompt, ...)
 {
 	//Posiziona il cursore all'inizio della riga del prompt,
 	//Cancellala e riscrivi il prompt
-	printf("\033[%d;1H\033[2K> ", console_height);
+	va_list args;
+	va_start(args, prompt);
+	printf("\033[%d;1H\033[2K", console_height);
+	vprintf(prompt, args);
+	printf("> ");
+	va_end(args);
 	fflush(stdout);
 }
 

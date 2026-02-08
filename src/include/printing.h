@@ -45,7 +45,7 @@ int log_line(const char* format, ...);
  * @note questa funzione cancella la riga, va chiamata
  * solo dopo che l'utente ha inviato il comando
  */
-void rewrite_prompt();
+void rewrite_prompt(const char* prompt, ...);
 
 #endif
 

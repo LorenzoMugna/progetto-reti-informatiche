@@ -1,8 +1,12 @@
-#include "state-handler.h"
+#include "lavagna-utils.h"
+#include "lavagna-state.h"
 #include "lavagna-net.h"
 #include "printing.h"
 #include <signal.h>
 #include <setjmp.h>
+
+
+int running;
 
 void parse_test()
 {
@@ -54,28 +58,34 @@ jmp_buf exit_jump_buffer;
 void exit_handler(int sig)
 {
 	(void)(sig);	// Evita warning parametro non usato
-	longjmp(exit_jump_buffer, 1); //Longjmp alla fine del main
+	running = 0;	// Ferma il ciclo principale
 }
 
 int main()
 {
-
 	init_state();
-	init_printing();
-	int ser_sock = init_server();
-
-	if (ser_sock == -1)
+	int server_socket = init_server();
+	if (server_socket == -1)
 	{
 		fprintf(stderr, "Errore inizializzazione server");
 		exit(1);
 	}
 
-	if(setjmp(exit_jump_buffer) == 1)
-		goto end;
-	signal(SIGINT, exit_handler);
+	int pipe = init_timeout_handler();
+	if (pipe == -1)
+	{
+		fprintf(stderr, "Errore inizializzazione timeout handler");
+		exit(1);
+	}
 
+	signal(SIGINT, exit_handler);
+	start_polling();
+
+	init_printing();
+	rewrite_prompt("Lavagna@5678");
+	running = 1;
 	// Ciclo principale della lavagna: attendi ricezione di un evento e gestiscilo
-	while (1)
+	while (running)
 	{
 		poll(sock_set, current_users + RESERVED_SOCK_SET_SOCKETS, -1);
 
@@ -99,13 +109,17 @@ int main()
 			switch (i)
 			{
 			case RESERVED_STDIN:
-			case RESERVED_COMMAND_PIPE:
 				char buf[1024];
 				int n = read(STDIN_FILENO, buf, sizeof(buf));
 				buf[n] = '\0';
 				log_line("Ricevuto: '%s', ma devo ancora implementare il resto...\n", buf);
-				rewrite_prompt();
+				rewrite_prompt("Lavagna@5678");
 				// TODO
+				break;
+
+			case RESERVED_COMMAND_PIPE:
+				read(fd, buf, sizeof(buf)); // svuota la pipe
+				polling_handler();
 				break;
 
 			case RESERVED_LISTENER:
@@ -166,15 +180,18 @@ int main()
 
 	//Routine di uscita, raggiunta tramite longjmp (vedi exit_handler)
 end:
-	clear_card_list(&to_do_list);
-	clear_card_list(&doing_list);
-	clear_card_list(&done_list);
 	for(user_t *it = (user_t *)user_list.next; it != (user_t *)&user_list; )
 	{
 		user_t *next = (user_t *)it->list.next;
 		disconnect_user(it);
 		it = next;
 	}
+	clear_card_list(&to_do_list);
+	clear_card_list(&doing_list);
+	clear_card_list(&done_list);
+	destroy_timeout_handler();
+	close(server_socket);
+
 	end_printing(); // ripristina la finestra
 	return 0;
 }

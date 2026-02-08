@@ -1,5 +1,6 @@
 #include "lavagna-net.h"
-#include "state-handler.h"
+#include "lavagna-utils.h"
+#include "lavagna-state.h"
 #include "printing.h"
 
 #include <stdio.h>
@@ -33,7 +34,7 @@ int send_card_to_handle(user_t *user, card_t *card)
 
 	// sposta la carta in doing solo dopo la ricezione dell'ACK_CARD.
 	// in caso di timeout queste modifiche vengono annullate
-	log_line("Inviata carta %u all'utente %u", card->ID, user_port);
+	log_line("[HANDLE_CARD] %llu: %s -> %hu\n", card->ID, card->desc, user_port);
 	return 0;
 error:
 	return -1;
@@ -110,16 +111,16 @@ user_t *find_user_from_fd(int fd)
 
 int init_server()
 {
-	// Inizializzazzione variabili di stato
-	current_users = 0;
 	memset(sock_set, 0, sizeof(sock_set));
+	sock_set[RESERVED_STDIN] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
+	current_users = 0;
+
 
 	int listener_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listener_fd == -1)
 		goto socket_error;
 
-	int one_ptr = 1;
-	setsockopt(listener_fd, SOL_SOCKET, SO_REUSEADDR, &one_ptr, sizeof(one_ptr));
+	setsockopt(listener_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
 
 	struct sockaddr_in listen_addr;
 	listen_addr.sin_family = AF_INET;
@@ -127,22 +128,15 @@ int init_server()
 	listen_addr.sin_port = htons(LAVAGNA_PORT);
 
 	if (bind(listener_fd, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) == -1)
-	{
-		goto bind_error;
-	}
+		goto socket_made_error;
 
 	if (listen(listener_fd, CONNECTION_BACKLOG) == -1)
-	{
-		goto listen_error;
-	}
+		goto socket_made_error;
 
 	sock_set[RESERVED_LISTENER] = (struct pollfd){.fd = listener_fd, .events = POLLIN};
-	sock_set[RESERVED_STDIN] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
 	return listener_fd;
 
-	// Gestione degli errori
-listen_error:
-bind_error:
+socket_made_error:
 	close(listener_fd);
 socket_error:
 	return -1;
@@ -161,7 +155,7 @@ int accept_user(int server_fd)
 	fd_set user_fd_set;
 	FD_ZERO(&user_fd_set);
 	FD_SET(user_sock, &user_fd_set);
-	struct timeval timeout = _LAVAGNA_TIMEOUT;
+	struct timeval timeout = LAVAGNA_TIMEOUT;
 	int select_return = select(user_sock + 1, &user_fd_set, NULL, NULL, &timeout);
 
 	// Errore select o utente non ha risposto in tempo
@@ -206,7 +200,6 @@ int accept_user(int server_fd)
 	distribute_cards();
 	return user_sock;
 
-	// Gestione errori
 connection_rejected_error:
 	// Rifiuta il client inviandogli QUIT
 	sendf(user_sock, "%s", str_command_tokens[QUIT]);
@@ -226,6 +219,7 @@ int disconnect_user(user_t *user)
 		pop_elem(&card->list);
 		push_back(&to_do_list, &card->list);
 		card->user = 0;
+		card->last_changed = time(NULL);
 
 		// Prova a riassegnare la carta
 		distribute_cards();
@@ -251,7 +245,7 @@ int disconnect_user(user_t *user)
 
 	destroy_user(user);
 
-	log_line("Utente %s:%d disconnesso\n", netaddr, user_port);
+	log_line("[QUIT] -> %hu\n", user_port);
 
 
 	return err; // ritorna lo stato della sendf
@@ -330,7 +324,7 @@ int handle_PONG_LAVAGNA(user_t *user, command_t *command)
 	if (user->timeout_type != TIMEOUT_PONG_LAVAGNA)
 		goto error;
 
-	user->timeout_type = TIMEOUT_PING_UTENTE;
+	user->timeout_type = TIMEOUT_PING_USER;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
 	return 0;
 
@@ -355,16 +349,16 @@ int handle_ACK_CARD(user_t *user, command_t *command)
 	push_back(&doing_list, &card->list);
 	card->last_changed = time(NULL);
 
-	log_line("L'utente %u ha preso in gestione la carta %u\n", ntohs(user->sockaddr.sin_port), card->ID);
+	log_line("[ACK_CARD] <- %hu\n", ntohs(user->sockaddr.sin_port));
 	// Imposta un timeout per un ping utente
-	user->timeout_type = TIMEOUT_PING_UTENTE;
+	user->timeout_type = TIMEOUT_PING_USER;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
 
 	show_lavagna_handler();
 	return 0;
 
 error:
-	log_line("ACK_CARD non valido da utente %u\n", ntohs(user->sockaddr.sin_port));
+	log_line("ACK_CARD non valido da utente %hu\n", ntohs(user->sockaddr.sin_port));
 	return -1;
 }
 
@@ -409,8 +403,8 @@ int handle_CARD_DONE(user_t *user, command_t *command)
 
 	card_t *card = user->handled_card;
 	pop_elem(&card->list);
-	card->last_changed = time(NULL);
 	push_back(&done_list, &card->list);
+	card->last_changed = time(NULL);
 
 	user->handled_card = NULL;
 

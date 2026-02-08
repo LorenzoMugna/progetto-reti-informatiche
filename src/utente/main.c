@@ -67,7 +67,7 @@ void print_test()
 	while (fgets(buf, 256, stdin))
 	{
 		log_line(buf);
-		rewrite_prompt();
+		rewrite_prompt("Utente@test");
 		log_line("test logging\n\n");
 	}
 	end_printing();
@@ -102,7 +102,9 @@ int main(int argc, char **argv)
 		return 1;
 	topoll[2] = (struct pollfd){.fd = linstener, .events = POLLIN};
 
+	srand(time(NULL)+port);
 	init_printing();
+	rewrite_prompt("Utente@%hu", port);
 
 	while(running)
 	{
@@ -110,7 +112,7 @@ int main(int argc, char **argv)
 		if (topoll[0].revents & POLLIN)
 		{
 			cli_event();
-			rewrite_prompt();
+			rewrite_prompt("Utente@%hu", port);
 		}
 		if (topoll[1].revents & POLLIN)
 		{

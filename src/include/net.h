@@ -1,3 +1,7 @@
+/**
+ * @brief Primitive per una gestione sicura della rete 
+ * tenendo conto del protocollo applicativo
+ */
 #ifndef NET_H
 #define NET_H
 
@@ -22,7 +26,8 @@ int sendf(int fd, const char* format, ...);
 
 
 /**
- * @brief riceve un messaggio dal socket `fd` e parsa il comando ricevuto.
+ * @brief riceve un messaggio dal socket `fd` e parsa il comando ricevuto,
+ * inserendo il suo indirizzo in `out`.
  * 
  * Se c'è stato un errore nella ricezione, `out` viene impostato a `NULL`
  * e ritorna -1.

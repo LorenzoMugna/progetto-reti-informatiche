@@ -61,7 +61,7 @@ int init_socket(uint16_t port)
 
 	// Permetti di riusare la stessa porta dopo poco tempo
 	int ret = setsockopt(mysock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
-		setsockopt(mysock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+	setsockopt(mysock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
 	if (ret == -1)
 		goto socket_made_error;
 
@@ -116,7 +116,7 @@ int init_listener_socket()
 
 	int one = 1;
 	int ret = setsockopt(listener_sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-		setsockopt(listener_sock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+	setsockopt(listener_sock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
 	if (ret == -1)
 		goto socket_made_error;
 
@@ -136,9 +136,9 @@ error:
 	return -1;
 }
 
-void *review_thread_func(void *arg)
+void *review_thread_f(void *arg)
 {
-	int secs = 1;
+	int secs = rand() % 5 + 2; // Simula tempo di review casuale tra 2 e 6 secondi
 	sleep(secs);
 	struct sockaddr_in *useraddr = (struct sockaddr_in *)arg;
 	int newsock = socket(AF_INET, SOCK_STREAM, 0);
@@ -156,10 +156,12 @@ void *review_thread_func(void *arg)
 		perror("thread connect");
 		exit(1);
 	}
+
 	while (
 		sendf(newsock, "%s accept",
 			  str_command_tokens[REVIEW_CARD]) == -1)
 		;
+	log_line("[REVIEW_CARD] -> %hu accepted\n", ntohs(useraddr->sin_port));
 	free(arg);
 	close(newsock);
 	return NULL;
@@ -172,9 +174,7 @@ int accept_request(int listener_sock)
 	socklen_t size_useraddr = sizeof(useraddr);
 	int user_sock = accept(listener_sock, (struct sockaddr *)&useraddr, &size_useraddr);
 	if (user_sock == -1)
-	{
 		goto error;
-	}
 
 	// Attendi un comando con timeout
 	fd_set user_fd_set;
@@ -185,16 +185,13 @@ int accept_request(int listener_sock)
 
 	// Errore select o utente non ha risposto in tempo
 	if (select_return == -1 || !FD_ISSET(user_sock, &user_fd_set))
-	{
 		goto sock_created_error;
-	}
 
 	command_t *command;
 	recv_command(user_sock, &command);
 
 	if (!command)
 		goto sock_created_error;
-
 
 	if (command->id != REVIEW_CARD) // Interazione non valida
 		goto command_created_error;
@@ -208,9 +205,8 @@ int accept_request(int listener_sock)
 		pthread_t review_thread;
 		struct sockaddr_in *useraddr_copy = malloc(sizeof(struct sockaddr_in));
 		memcpy(useraddr_copy, &useraddr, sizeof(struct sockaddr_in));
-		pthread_create(&review_thread, NULL, review_thread_func, useraddr_copy);
+		pthread_create(&review_thread, NULL, review_thread_f, useraddr_copy);
 		pthread_detach(review_thread);
-
 	}
 	else if (strcmp(command->content, "accept") == 0)
 	{
@@ -219,7 +215,7 @@ int accept_request(int listener_sock)
 		// Rimuovi utente dalla lista di review mancanti
 		for (list_t *it = missing_reviews.next; it != &missing_reviews; it = it->next)
 		{
-			useraddr_t *it_useraddr = (useraddr_t *)it;	
+			useraddr_t *it_useraddr = (useraddr_t *)it;
 			if (it_useraddr->user_address.sin_port == useraddr.sin_port)
 			{
 				pop_elem(&it_useraddr->list);
@@ -238,8 +234,7 @@ int accept_request(int listener_sock)
 		fprintf(stderr, "Formato non valido per REVIEW_CARD");
 	}
 
-	//Manda in automatico? boh
-	close(user_sock); // Connessione non persistente
+	close(user_sock);
 	destroy_command(command);
 	return 0;
 
@@ -341,13 +336,12 @@ int handle_SEND_USER_LIST(command_t *command)
 			exit(1);
 			goto error;
 		}
-		while (
-			sendf(newsock, "%s request",
-				  str_command_tokens[REVIEW_CARD]) == -1)
-			;
+		sendf(newsock, "%s request",
+			  str_command_tokens[REVIEW_CARD]);
+		log_line("[REVIEW_CARD] -> %hu\n", ntohs(useraddr->user_address.sin_port));
+		
 	
 		close(newsock);
-		
 	}
 	return 0;
 
@@ -363,6 +357,7 @@ int handle_PING_USER(command_t *command)
 	int err = sendf(my_socket, "%s ", str_command_tokens[PONG_LAVAGNA]);
 	if (err == -1)
 		goto error;
+	log_line("[PONG_LAVAGNA] -> lavagna\n");
 	return 0;
 
 error:
@@ -404,7 +399,7 @@ int handle_HANDLE_CARD(command_t *command)
 	if (err == -1)
 		goto error;
 
-	log_line("Carta ricevuta: %s\n", tok_state);
+	log_line("[ACK_CARD] -> lavagna\n", tok_state);
 	current_user_state = STATE_HANDLING;
 	handled_card = new_card(0, tok_state);
 	return 0;
