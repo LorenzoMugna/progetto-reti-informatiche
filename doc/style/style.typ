@@ -9,7 +9,7 @@
   numbering("1.1", ..nums)
 }
 
-#let SPACE_LEADING = 0.55em
+#let SPACE_LEADING = 0.46em
 #let HEADING_OFFSET = 0
 #let document(
   title: content,
@@ -19,8 +19,8 @@
   set page(
     paper: "a4",
     columns: 2,
-    margin: (x: 2cm, y: 2cm),
-    header: [Lorenzo Mugnaioli -- Reti Informatiche -- 17 febbraio 2026 #line(end: (100%, 0%))],
+    margin: (x: 1.6cm, top: 2cm, bottom: 1cm),
+    header: [Lorenzo Mugnaioli -- Reti Informatiche -- 17 febbraio 2026 #line(length: 100%)],
   )
 
   set text(
@@ -53,5 +53,8 @@
     spacing: SPACE_LEADING,
     leading: SPACE_LEADING,
   )
+
+  set figure(gap: 0.5cm, placement:auto)
+
   doc
 }

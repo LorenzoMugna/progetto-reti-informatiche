@@ -1,6 +1,7 @@
 build/**
 /utente
 /lavagna
+*.pdf
 
 # output errori
 log.txt
