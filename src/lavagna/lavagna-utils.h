@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-
+#define LAVAGNA_COLUMN_WIDTH 32
 /**
  * @brief Costruisce la visualizzazione della lavagna sull buffer `str`
  * lungo `n` caratteri.

@@ -19,13 +19,40 @@ static inline size_t snprintf_wrapper(char *restrict str, size_t n, char *restri
 /**
  * @brief Funzione di utilità per stampare una carta in una colonna.
  * Viene gestito il caso di una descrizione che non rientra in una sola riga.
- * 
+ *
  * @note `list_iter` e `desc_iter` devono essere modificati, per questo sono puntatori doppi.
  */
 static void iter_printing(char *str, size_t column_width, list_t **list_iter, char **desc_iter)
 {
-	size_t printed;
-	if (*desc_iter)
+	size_t printed=0;
+	card_t *cardp = (card_t *)*list_iter;
+	if (*desc_iter == NULL)
+	{
+		// Inizia nuova carta
+		*desc_iter = cardp->desc;
+		printed = snprintf_wrapper(str, column_width, "ID: %lu User: %hu ", cardp->ID, cardp->user);
+		str += printed;
+		*desc_iter = (void *)1;
+	}
+	else if (*desc_iter == (void*)1)
+	{
+		// Stampa la seconda riga
+		struct tm *tm_info = localtime(&cardp->last_changed);
+		printed = snprintf_wrapper(str, column_width - printed, "%02d/%02d/%04d, %02d:%02d:%02d",
+								   tm_info->tm_mday,
+								   tm_info->tm_mon + 1,
+								   tm_info->tm_year + 1900,
+								   tm_info->tm_hour,
+								   tm_info->tm_min,
+								   tm_info->tm_sec);
+		*desc_iter = cardp->desc;
+	}
+	else if (*desc_iter == (void*)2)
+	{
+		// Stato di sospensione per fare la riga vuota tra 2 carte.
+		*desc_iter = NULL;
+	}
+	else
 	{
 		// Continua la stampa
 		printed = snprintf_wrapper(str, column_width, "%s", *desc_iter);
@@ -34,22 +61,7 @@ static void iter_printing(char *str, size_t column_width, list_t **list_iter, ch
 		{
 			// Fine carta, passa alla prossima
 			*list_iter = (*list_iter)->next;
-			*desc_iter = NULL;
-		}
-	}
-	else
-	{
-		// Inizia nuova carta
-		card_t *cardp = (card_t *)*list_iter;
-		*desc_iter = cardp->desc;
-		printed = snprintf_wrapper(str, column_width, "%lu [%hu]: ", cardp->ID, cardp->user);
-		printed = snprintf_wrapper(str + printed, column_width - printed, "%s", *desc_iter);
-		*desc_iter += printed;
-		if (!**desc_iter)
-		{
-			// Fine carta, passa alla prossima
-			*list_iter = (*list_iter)->next;
-			*desc_iter = NULL;
+			*desc_iter = (void*)2;
 		}
 	}
 }
@@ -62,9 +74,9 @@ static size_t print_sep_line(char *str, size_t n, size_t column_width, bool inte
 {
 	size_t printed;
 	char *str_ini = str;
-	for (size_t i = 0; i < 3u*column_width; i++)
+	for (size_t i = 0; i < 3u * column_width; i++)
 	{
-		if(i%(column_width+1) == column_width && intersections)
+		if (i % (column_width + 1) == column_width && intersections)
 		{
 			printed = snprintf_wrapper(str, n, "+");
 		}
@@ -108,24 +120,19 @@ void build_lavagna(char *str, size_t n, size_t column_width)
 	char *done_iter_pointer = NULL;
 	while ((to_do_iter != &to_do_list || doing_iter != &doing_list || done_iter != &done_list) && n > 0)
 	{
-	char to_do_str[25] = {0},
-		 doing_str[25] = {0},
-		 done_str[25] = {0};
+		char to_do_str[25] = {0},
+			 doing_str[25] = {0},
+			 done_str[25] = {0};
 
 		if (to_do_iter != &to_do_list)
-		{
 			iter_printing(to_do_str, column_width, &to_do_iter, &to_do_iter_pointer);
-		}
 
 		if (doing_iter != &doing_list)
-		{
 			iter_printing(doing_str, column_width, &doing_iter, &doing_iter_pointer);
-		}
 
 		if (done_iter != &done_list)
-		{
 			iter_printing(done_str, column_width, &done_iter, &done_iter_pointer);
-		}
+
 		printed = snprintf_wrapper(str, n, "%-*s|%-*s|%-*s\n",
 								   column_width, to_do_str,
 								   column_width, doing_str,
@@ -133,8 +140,9 @@ void build_lavagna(char *str, size_t n, size_t column_width)
 		str += printed;
 		n -= printed;
 	}
-	print_sep_line(str, n, column_width, true);
 
+	print_sep_line(str, n, column_width, true);
+	print_sep_line(str, n, column_width, true);
 }
 
 void build_user_list(char *str, size_t n, user_t *excluded_user)
@@ -187,12 +195,8 @@ error:
 	return -1;
 }
 
-
 void distribute_cards()
 {
-	// if (current_users < 2)
-	// 	return;
-
 	// Per ogni utente, se non sta gestendo carte, dagli una carta da fare
 	list_t *iter = user_list.next;
 	list_t *card_iter = to_do_list.next;

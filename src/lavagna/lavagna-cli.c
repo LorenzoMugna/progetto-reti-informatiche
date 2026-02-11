@@ -8,11 +8,30 @@
 #include <signal.h>
 #include <string.h>
 
+const char helpstring[] =
+"Comandi disponibili:\n"
+"QUIT                  termina l'esecuzione della lavagna e degli utenti\n"
+"CREATE_CARD <testo>   crea una nuova carta con il testo specificato e inseriscila\n"
+"                      in To Do\n"
+"SHOW_LAVAGNA          mostra la lavagna\n"
+"PING_USER <porta>     invia un PING_USER manualmente ad un utente in qualsiasi momento,\n"
+"                      anche quando non sta gestendo una carta\n"
+"HELP                  mostra questo messaggio di aiuto\n"
+"\n"
+"Tutti i comandi sono case-insensitive.\n\n"
+
+
+;
 int cli_event()
 {
 	char buf[256];
 	if (!fgets(buf, sizeof(buf), stdin))
 		goto error;
+	if (strcasecmp(buf, "help\n") == 0)
+	{
+		log_line(helpstring);
+		return 0;
+	}
 
 	command_t *command = parse_command(buf);
 	if (!command)
@@ -25,7 +44,6 @@ int cli_event()
 	int err = handler(command);
 
 	destroy_command(command);
-	rewrite_prompt("Lavagna@5678");
 	return err;
 
 command_created_error:

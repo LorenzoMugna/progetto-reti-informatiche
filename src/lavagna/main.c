@@ -6,7 +6,6 @@
 #include <signal.h>
 #include <setjmp.h>
 
-
 int running;
 
 void parse_test()
@@ -35,7 +34,6 @@ void parse_test()
 	destroy_command(test);
 }
 
-
 void card_test()
 {
 
@@ -58,8 +56,8 @@ void card_test()
 jmp_buf exit_jump_buffer;
 void exit_handler(int sig)
 {
-	(void)(sig);	// Evita warning parametro non usato
-	running = 0;	// Ferma il ciclo principale
+	(void)(sig); // Evita warning parametro non usato
+	running = 0; // Ferma il ciclo principale
 }
 
 int main()
@@ -110,8 +108,9 @@ int main()
 			switch (i)
 			{
 			case RESERVED_STDIN:
-				if(cli_event()==-1)
+				if (cli_event() == -1)
 					log_line("Errore nella gestione del comando\n");
+				rewrite_prompt("Lavagna@5678");
 				break;
 
 			case RESERVED_COMMAND_PIPE:
@@ -173,9 +172,9 @@ int main()
 		}
 	}
 
-	//Routine di uscita, raggiunta tramite longjmp (vedi exit_handler)
+	// Routine di uscita, raggiunta tramite longjmp (vedi exit_handler)
 end:
-	for(user_t *it = (user_t *)user_list.next; it != (user_t *)&user_list; )
+	for (user_t *it = (user_t *)user_list.next; it != (user_t *)&user_list;)
 	{
 		user_t *next = (user_t *)it->list.next;
 		disconnect_user(it);
@@ -189,6 +188,6 @@ end:
 	close(server_socket);
 
 	end_printing(); // ripristina la finestra
-	close(STDOUT_FILENO);	
+	close(STDOUT_FILENO);
 	return 0;
 }

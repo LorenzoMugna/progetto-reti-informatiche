@@ -9,8 +9,6 @@
 struct pollfd sock_set[RESERVED_SOCK_SET_SOCKETS + MAX_USERS];
 uint32_t current_users;
 
-
-
 void remove_from_sock_set(int fd)
 {
 	uint32_t w = RESERVED_SOCK_SET_SOCKETS,
@@ -237,7 +235,7 @@ int handle_SHOW_LAVAGNA(user_t *user, command_t *command)
 
 	int user_socket_fd = user->socket;
 
-	build_lavagna(lavagna_buffer, sizeof(lavagna_buffer), 24);
+	build_lavagna(lavagna_buffer, sizeof(lavagna_buffer), LAVAGNA_COLUMN_WIDTH);
 	int err = sendf(user_socket_fd, "%s %s", command_strings[SHOW_LAVAGNA], lavagna_buffer);
 	if (err == -1)
 		goto error;
@@ -321,7 +319,7 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 	build_user_list(buf, sizeof(buf), user);
 	int err = sendf(user_socket_fd, "%s %u %s",
 					command_strings[SEND_USER_LIST],
-					current_users,
+					current_users-1,
 					buf);
 
 	if (err == -1)

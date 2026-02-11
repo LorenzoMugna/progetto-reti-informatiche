@@ -351,11 +351,19 @@ int handle_SEND_USER_LIST(command_t *command)
 	char *tok_state = NULL;
 	char *n_users_token = __strtok_r(command->content, " ", &tok_state);
 	uint32_t n_users = atoi(n_users_token);
-	log_line("Lista utenti ricevuta (%d utenti connessi)\n", n_users);
+	log_line("Lista utenti ricevuta (%d elementi)\n", n_users);
 
-	for (uint32_t i = 0; i < n_users - 1; i++)
+	if (n_users == 0)
 	{
-		char *address_token = __strtok_r(NULL, " ", &tok_state);
+		log_line("Nessun altro utente connesso: "
+		"Aspetta che un altro utente si connetta\n");
+		current_user_state = STATE_HANDLING;
+		return 0;
+	}
+
+	for (uint32_t i = 0; i < n_users; i++)
+	{
+		char *address_token = strtok_r(NULL, " ", &tok_state);
 		if (!address_token)
 			goto error;
 
@@ -382,6 +390,7 @@ int handle_SEND_USER_LIST(command_t *command)
 			goto error;
 		}
 	}
+
 	log_line("\n");
 
 	// TODO: imposta timeout per ricevere le review
@@ -431,8 +440,8 @@ int handle_HANDLE_CARD(command_t *command)
 		if (!tok)
 			goto error;
 
-		// Scarta lista utenti; tanto al momento
-		// della review viene richiesta nuovamente ¯\_(ツ)_/¯
+		// Scarta lista utenti: va chiesta nuovamente
+		// in fase di revisione
 	}
 	// Comando malformato (e.g. numero avvisato di utenti troppo alto)
 	if (!tok_state)

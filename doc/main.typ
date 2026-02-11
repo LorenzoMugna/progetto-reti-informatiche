@@ -1,6 +1,11 @@
 #import "style/style.typ": document
 #import "@preview/cetz:0.4.2"
 
+#context{
+  if (counter(page).final().at(0)>2) {
+    panic("Limite pagine superato")
+  }
+}
 #show: document.with(
   title: [Documentazione progetto (matricola dispari)],
   subtitle: [Lorenzo Mugnaioli, 677231],
@@ -15,6 +20,13 @@ Nella cartella del progetto eseguire il comando
 #highlight[`make all`]. Saranno prodotti due link simbolici
 `./lavagna` e `./utente` nella cartella radice del progetto,
 che possono essere eseguiti come descritto nelle specifiche.
+
+Il codice è diviso in 4 cartelle:
+- `/lib/` e `/include/`: contengono rispettivamente
+  sorgenti e header relativi a funzioni utili sia per la
+  lavagna che per l'utente
+- `/utente/`: sorgenti relativi all'utente
+- `/lavagna/`: sorgenti relativi alla lavagna
 
 
 = Protocollo applicativo
@@ -215,18 +227,7 @@ multiplexing #footnote[Un meccanismo di multiplexing è
   descriptor sono fissati all'inizio dell'esecuzione].
 
 Le connssioni non persistenti garantiscono una maggiore
-flessibilità nell'interazione tra gli utenti
-#footnote[
-  Si noti che ogni utente in ogni dato
-  istante ha un massimo di 3 connessioni aperte indipendentemente
-  dal numero di utenti: quella persistente con la lavagna,
-  quella di invio/ricezione di una richiesta/approvazione
-  di revisione e quella aperta da un thread separato
-  dell'utente per inviare la risposta ad una richiesta di
-  revisione. Questo limita la quantità di risorse allocate
-  al processo utente: caratteristica generalmente
-  desiderabile per il lato client di un'applicazione.
-]:
+flessibilità nell'interazione tra gli utenti:
 è possibile intercettare sia richieste di review sia
 risposte a richieste di review prestando attenzione solo
 al socket su cui l'utente rimane in ascolto, dato che

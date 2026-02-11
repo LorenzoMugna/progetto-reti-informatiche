@@ -67,9 +67,11 @@ Da quello che ho capito completamente deterministico (non c'è veramente un uten
 
 
 # TODO
-Refactor
+~~Refactor~~
 
 Cleanliness delle interazioni (la lavagna deve essere mostrata nuovamente ad ogni interazione etc. etc.)
+- Semplifica invio porte (escludi indirizzo)
+
 Crea helpstring e viualizzala nello startup
 
 Documentazione (quasi finita)
@@ -78,15 +80,20 @@ Lavagna:
 - ~~gestione errori send (fai una common-net per primitive safe)~~
 - ~~Multiplexing I/O fatto bene~~
 - ~~poll dei timeout~~
-- gestione comandi da terminale (cli-handlers)
+- ~~gestione comandi da terminale (cli-handlers)~~
     - ~~`QUIT`~~
     - ~~`CREATE_CARD`~~
     - ~~`MOVE_CARD`~~
     - ~~`PING_USER`~~
+
 - visualizzazione della lavagna in colonne
+    - quasi fatto: manca l'id della lavagna
+- Aggiungi carte di default alla lavagna
 
 Client:
 - ~~Un client non deve poter uscire se sta facendo una review~~
 - ~~gestione comandi da terminale (cli-handlers)~~
 - ~~gestione richieste di review~~
-- Robustezza: implementazione timeout sull'invio e la ricevuta di approvazioni
+- Vai in review automaticamente
+- Robustezza: implementazione timeout sull'invio e la ricevuta di approvazioni (non lo farò)
+

@@ -30,7 +30,7 @@ void init_state()
 
 void show_lavagna_handler()
 {
-	char buf[1024];
-	build_lavagna(buf, sizeof(buf), 24);
+	char buf[65536];
+	build_lavagna(buf, sizeof(buf), LAVAGNA_COLUMN_WIDTH);
 	log_line(buf);
 }
