@@ -68,23 +68,25 @@ Da quello che ho capito completamente deterministico (non c'è veramente un uten
 
 # TODO
 Refactor
-~~fixa bug per cui non vengono disconnessi gli utenti alla fine~~
 
 Cleanliness delle interazioni (la lavagna deve essere mostrata nuovamente ad ogni interazione etc. etc.)
 Crea helpstring e viualizzala nello startup
-Documentazione
 
-
+Documentazione (quasi finita)
 
 Lavagna:
 - ~~gestione errori send (fai una common-net per primitive safe)~~
 - ~~Multiplexing I/O fatto bene~~
 - ~~poll dei timeout~~
 - gestione comandi da terminale (cli-handlers)
+    - ~~`QUIT`~~
+    - ~~`CREATE_CARD`~~
+    - ~~`MOVE_CARD`~~
+    - ~~`PING_USER`~~
+- visualizzazione della lavagna in colonne
 
 Client:
 - ~~Un client non deve poter uscire se sta facendo una review~~
 - ~~gestione comandi da terminale (cli-handlers)~~
-- ~~gestione richieste di review~
-
-
+- ~~gestione richieste di review~~
+- Robustezza: implementazione timeout sull'invio e la ricevuta di approvazioni

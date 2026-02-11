@@ -8,7 +8,7 @@
 #include <malloc.h>
 #include <string.h>
 
-const char *str_command_tokens[] = {
+const char *command_strings[] = {
 	COMMAND_TOKENS,
 	NULL // NULL terminated: riconoscere la fine mentre vengono scorsi tutti i possbili token
 };
@@ -80,9 +80,9 @@ command_token_t find_command_id(const char *command_token)
 		return -1;
 
 	// Ottieni ID comando (le stringhe sono definite nello stesso ordine della enum command_token_t)
-	for (int i = 0; str_command_tokens[i]; i++)
+	for (int i = 0; command_strings[i]; i++)
 	{
-		if (!strcmp(str_command_tokens[i], command_token))
+		if (!strcasecmp(command_strings[i], command_token))
 		{
 			return i;
 		}

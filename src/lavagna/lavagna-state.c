@@ -31,6 +31,6 @@ void init_state()
 void show_lavagna_handler()
 {
 	char buf[1024];
-	build_lavagna(buf, sizeof(buf));
+	build_lavagna(buf, sizeof(buf), 24);
 	log_line(buf);
 }

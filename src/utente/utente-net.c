@@ -1,8 +1,8 @@
-#include <sys/select.h>
-#include <signal.h>
-#include <pthread.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <signal.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 
 #include "utente-net.h"
@@ -12,7 +12,6 @@
 
 int my_socket;
 struct sockaddr_in my_address;
-
 user_state_t current_user_state;
 card_t *handled_card;
 
@@ -82,7 +81,7 @@ int init_socket(uint16_t port)
 	if (ret == -1)
 		goto socket_made_error;
 
-	ret = sendf(mysock, "%s", str_command_tokens[HELLO]);
+	ret = sendf(mysock, "%s", command_strings[HELLO]);
 	if (ret == -1)
 		goto socket_made_error;
 
@@ -138,6 +137,7 @@ error:
 
 void *review_thread_f(void *arg)
 {
+	// TODO: fixa gestione errori
 	int secs = rand() % 5 + 2; // Simula tempo di review casuale tra 2 e 6 secondi
 	sleep(secs);
 	struct sockaddr_in *useraddr = (struct sockaddr_in *)arg;
@@ -159,7 +159,7 @@ void *review_thread_f(void *arg)
 
 	while (
 		sendf(newsock, "%s accept",
-			  str_command_tokens[REVIEW_CARD]) == -1)
+			  command_strings[REVIEW_CARD]) == -1)
 		;
 	log_line("[REVIEW_CARD] -> %hu accepted\n", ntohs(useraddr->sin_port));
 	free(arg);
@@ -247,6 +247,28 @@ sock_created_error:
 error:
 	return -1;
 }
+
+int net_event()
+{
+	command_t *command;
+	recv_command(my_socket, &command);
+	if (!command)
+		goto error;
+
+	network_handler_t handler = network_handlers[command->id];
+	if (!handler)
+		goto command_created_error;
+	int err = handler(command);
+
+	destroy_command(command);
+	return err;
+
+command_created_error:
+	destroy_command(command);
+
+error:
+	return -1;
+}
 /* ---- USER NETWORK HANDLERS ----*/
 
 int ignore_command(command_t *command)
@@ -258,11 +280,8 @@ int ignore_command(command_t *command)
 int handle_QUIT(command_t *command)
 {
 	(void)command;
-
 	// Termina semplicemente l'esecuzione.
-	// La lavagna gestisce lo stato.
 	log_line("Ricevuto QUIT dalla lavagna, termino l'esecuzione...\n");
-	clear_useraddr_list(&missing_reviews);
 	pid_t pid = getpid();
 	kill(pid, SIGINT);
 	return 0;
@@ -270,13 +289,52 @@ int handle_QUIT(command_t *command)
 
 int handle_SHOW_LAVAGNA(command_t *command)
 {
-	// if (expected_from_lavagna != SHOW_LAVAGNA)
-	// 	goto error;
-
-	if (!command)
+	if (!command || !command->content)
 		goto error;
 
 	log_line(command->content);
+	return 0;
+
+error:
+	return -1;
+}
+
+/**
+ * @brief usato dalla lavagna per segnalare che la carta dell'utente è stata spostata in un'altra lista.
+ * Fa tornare l'utente in `STATE_IDLE` e distrugge la carta gestita.
+ */
+int handle_MOVE_CARD(command_t *command)
+{
+	(void)command;
+	log_line("Carta spostata forzatamante dalla lavagna.\n");
+	current_user_state = STATE_IDLE;
+	destroy_card(handled_card);
+	clear_useraddr_list(&missing_reviews);
+	handled_card = NULL;
+	// TODO: reset timeout
+	return 0;
+}
+
+int send_review_request(struct sockaddr_in *address)
+{
+	int newsock = socket(AF_INET, SOCK_STREAM, 0);
+	setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
+	setsockopt(newsock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
+
+	int err = bind(newsock, (struct sockaddr *)&my_address, sizeof(my_address));
+	err = connect(newsock, (struct sockaddr *)address, sizeof(*address));
+	if (err == -1)
+	{
+		end_printing();
+		perror("bind");
+		exit(1);
+		goto error;
+	}
+	sendf(newsock, "%s request",
+		  command_strings[REVIEW_CARD]);
+	log_line("[REVIEW_CARD] -> %hu\n", ntohs(address->sin_port));
+
+	close(newsock);
 	return 0;
 error:
 	return -1;
@@ -291,62 +349,47 @@ int handle_SEND_USER_LIST(command_t *command)
 		goto error;
 
 	char *tok_state = NULL;
-	char *tok = __strtok_r(command->content, " ", &tok_state);
-	uint32_t n_users = atoi(tok);
-	log_line("Lista utenti ricevuta (%d):\n", n_users);
+	char *n_users_token = __strtok_r(command->content, " ", &tok_state);
+	uint32_t n_users = atoi(n_users_token);
+	log_line("Lista utenti ricevuta (%d utenti connessi)\n", n_users);
+
 	for (uint32_t i = 0; i < n_users - 1; i++)
 	{
-		tok = __strtok_r(NULL, " ", &tok_state);
-		if (!tok)
+		char *address_token = __strtok_r(NULL, " ", &tok_state);
+		if (!address_token)
 			goto error;
 
-		log_line("%s\n", tok);
 		useraddr_t *useraddr = new_useraddr();
+
 		if (!useraddr)
 			goto error;
 
-		parse_address(&useraddr->user_address, tok);
+		// Aggiungi subito alla lista in modo che sia
+		// distrutto in caso di errore (clear_useraddr_list)
 		push_back(&missing_reviews, &useraddr->list);
+
+		parse_address(&useraddr->user_address, address_token);
 
 		if (useraddr->user_address.sin_addr.s_addr == INADDR_NONE)
 		{
 			log_line("Errore nel formato dell'indirizzo\n");
-			clear_useraddr_list(&missing_reviews);
+			goto error;
+		}
+
+		if (send_review_request(&useraddr->user_address) == -1)
+		{
+			log_line("Errore nell'invio della richiesta di revisione\n");
 			goto error;
 		}
 	}
 	log_line("\n");
 
+	// TODO: imposta timeout per ricevere le review
 	current_user_state = STATE_REVIEWING;
-	for (list_t *it = missing_reviews.next; it != &missing_reviews; it = it->next)
-	{
-		// TODO: meno pigro
-		useraddr_t *useraddr = (useraddr_t *)it;
-
-		int newsock = socket(AF_INET, SOCK_STREAM, 0);
-		setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
-		setsockopt(newsock, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int));
-
-		int err = bind(newsock, (struct sockaddr *)&my_address, sizeof(my_address));
-		err = connect(newsock, (struct sockaddr *)&useraddr->user_address, sizeof(useraddr->user_address));
-		if (err == -1)
-		{
-			end_printing();
-			perror("bind");
-			exit(1);
-			goto error;
-		}
-		sendf(newsock, "%s request",
-			  str_command_tokens[REVIEW_CARD]);
-		log_line("[REVIEW_CARD] -> %hu\n", ntohs(useraddr->user_address.sin_port));
-		
-	
-		close(newsock);
-	}
 	return 0;
 
 error:
-	log_line("Errore nella gestione della lista utenti\n");
+	clear_useraddr_list(&missing_reviews);
 	return -1;
 }
 
@@ -354,7 +397,7 @@ int handle_PING_USER(command_t *command)
 {
 	(void)command;
 
-	int err = sendf(my_socket, "%s ", str_command_tokens[PONG_LAVAGNA]);
+	int err = sendf(my_socket, "%s ", command_strings[PONG_LAVAGNA]);
 	if (err == -1)
 		goto error;
 	log_line("[PONG_LAVAGNA] -> lavagna\n");
@@ -395,7 +438,7 @@ int handle_HANDLE_CARD(command_t *command)
 	if (!tok_state)
 		goto error;
 
-	int err = sendf(my_socket, "%s ", str_command_tokens[ACK_CARD]);
+	int err = sendf(my_socket, "%s ", command_strings[ACK_CARD]);
 	if (err == -1)
 		goto error;
 

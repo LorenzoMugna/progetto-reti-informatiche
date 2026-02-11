@@ -9,68 +9,7 @@
 struct pollfd sock_set[RESERVED_SOCK_SET_SOCKETS + MAX_USERS];
 uint32_t current_users;
 
-int send_card_to_handle(user_t *user, card_t *card)
-{
-	if (!user || !card)
-		goto error;
 
-	// Invia la carta all'utente, assegnala preventivamente
-	// e imposta un timeout per l'ACK_CARD
-	char buf[1024];
-	build_user_list(buf, sizeof(buf), user);
-	int err = sendf(user->socket, "%s %u %s %s",
-					str_command_tokens[HANDLE_CARD],
-					current_users,
-					buf,
-					card->desc);
-	if (err == -1)
-		goto error;
-
-	uint16_t user_port = ntohs(user->sockaddr.sin_port);
-	card->user = user_port;
-	user->timeout_type = TIMEOUT_ACK_CARD;
-	user->next_timeout = time(NULL) + ACK_CARD_TIMEOUT;
-	user->handled_card = card;
-
-	// sposta la carta in doing solo dopo la ricezione dell'ACK_CARD.
-	// in caso di timeout queste modifiche vengono annullate
-	log_line("[HANDLE_CARD] %llu: %s -> %hu\n", card->ID, card->desc, user_port);
-	return 0;
-error:
-	return -1;
-}
-
-void distribute_cards()
-{
-	if (current_users < 2)
-		return;
-
-	// Per ogni utente, se non sta gestendo carte, dagli una carta da fare
-	list_t *iter = user_list.next;
-	list_t *card_iter = to_do_list.next;
-	while (iter != &user_list)
-	{
-		user_t *user = (user_t *)iter;
-		if (user->handled_card)
-		{
-			iter = iter->next;
-			continue;
-		}
-
-		while (card_iter != &to_do_list)
-		{
-			card_t *card = (card_t *)card_iter;
-			if (card->user == 0) // Carta non assegnata
-			{
-				send_card_to_handle(user, card);
-				card_iter = card_iter->next;
-				break;
-			}
-			card_iter = card_iter->next;
-		}
-		iter = iter->next;
-	}
-}
 
 void remove_from_sock_set(int fd)
 {
@@ -88,10 +27,10 @@ void remove_from_sock_set(int fd)
 		r++;
 		w++;
 	}
-	if (r==w)
+	if (r == w)
 		return;
 	current_users -= (r - w);
-	memset(&sock_set[w], 0, sizeof(sock_set[0])*(r-w));
+	memset(&sock_set[w], 0, sizeof(sock_set[0]) * (r - w));
 }
 
 user_t *find_user_from_fd(int fd)
@@ -114,7 +53,6 @@ int init_server()
 	memset(sock_set, 0, sizeof(sock_set));
 	sock_set[RESERVED_STDIN] = (struct pollfd){.fd = STDIN_FILENO, .events = POLLIN};
 	current_users = 0;
-
 
 	int listener_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listener_fd == -1)
@@ -195,14 +133,14 @@ int accept_user(int server_fd)
 	current_users++;
 
 	// Conferma la connessione al client inviandogli HELLO
-	sendf(user_sock, "%s", str_command_tokens[HELLO]);
+	sendf(user_sock, "%s", command_strings[HELLO]);
 
 	distribute_cards();
 	return user_sock;
 
 connection_rejected_error:
 	// Rifiuta il client inviandogli QUIT
-	sendf(user_sock, "%s", str_command_tokens[QUIT]);
+	sendf(user_sock, "%s", command_strings[QUIT]);
 sock_created_error:
 	close(user_sock);
 error:
@@ -225,7 +163,6 @@ int disconnect_user(user_t *user)
 		distribute_cards();
 	}
 
-
 	uint16_t user_port = ntohs(user->sockaddr.sin_port);
 	int user_socket = user->socket;
 	char netaddr[20];
@@ -235,7 +172,7 @@ int disconnect_user(user_t *user)
 	// nella ricezione e continua con il processo di
 	// disconnessione (caso d'esempio: l'utente si è
 	// già disconnesso quando questa funzione va in esecuzione)
-	int err = sendf(user_socket, "%s", str_command_tokens[QUIT]);
+	int err = sendf(user_socket, "%s", command_strings[QUIT]);
 
 	// 2. rimuovi user dalla lista di utenti
 	user_table[user_port] = NULL;
@@ -247,10 +184,8 @@ int disconnect_user(user_t *user)
 
 	log_line("[QUIT] -> %hu\n", user_port);
 
-
 	return err; // ritorna lo stato della sendf
 }
-
 
 /* ---- HANDLER EVENTI RICEVUTI ---- */
 int ignore_command(user_t *user, command_t *command)
@@ -292,6 +227,7 @@ error:
 	return -1;
 }
 
+static char lavagna_buffer[MAX_SEND_SIZE+1];
 int handle_SHOW_LAVAGNA(user_t *user, command_t *command)
 {
 	(void)command;
@@ -301,9 +237,8 @@ int handle_SHOW_LAVAGNA(user_t *user, command_t *command)
 
 	int user_socket_fd = user->socket;
 
-	char a[1024];
-	build_lavagna(a, sizeof(a));
-	int err = sendf(user_socket_fd, "%s %s", str_command_tokens[SHOW_LAVAGNA], a);
+	build_lavagna(lavagna_buffer, sizeof(lavagna_buffer), 24);
+	int err = sendf(user_socket_fd, "%s %s", command_strings[SHOW_LAVAGNA], lavagna_buffer);
 	if (err == -1)
 		goto error;
 
@@ -324,8 +259,17 @@ int handle_PONG_LAVAGNA(user_t *user, command_t *command)
 	if (user->timeout_type != TIMEOUT_PONG_LAVAGNA)
 		goto error;
 
-	user->timeout_type = TIMEOUT_PING_USER;
-	user->next_timeout = time(NULL) + PING_TIMEOUT;
+	if (user->handled_card)
+	{
+		user->timeout_type = TIMEOUT_PING_USER;
+		user->next_timeout = time(NULL) + PING_TIMEOUT;
+	}else{
+		// Se non stava gestendo carte, imposta timeout a TIMEOUT_NONE
+		// Può succedere se il PING_UTENTE è stato richiesto manualmente
+		// Dalla CLI della lavagna
+		user->timeout_type = TIMEOUT_NONE;
+		user->next_timeout = 0;
+	}
 	return 0;
 
 error:
@@ -376,7 +320,7 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 	char buf[1024];
 	build_user_list(buf, sizeof(buf), user);
 	int err = sendf(user_socket_fd, "%s %u %s",
-					str_command_tokens[SEND_USER_LIST],
+					command_strings[SEND_USER_LIST],
 					current_users,
 					buf);
 
@@ -412,7 +356,8 @@ int handle_CARD_DONE(user_t *user, command_t *command)
 	user->timeout_type = TIMEOUT_NONE;
 	user->next_timeout = 0;
 
-	// TODO: assegna nuova carta
+	distribute_cards();
+	show_lavagna_handler();
 	return 0;
 error:
 	return -1;

@@ -1,6 +1,7 @@
 #include "lavagna-utils.h"
 #include "lavagna-state.h"
 #include "lavagna-net.h"
+#include "lavagna-cli.h"
 #include "printing.h"
 #include <signal.h>
 #include <setjmp.h>
@@ -22,7 +23,7 @@ void parse_test()
 
 	if (test)
 	{
-		log_line("%d: %s (%d content length)\n", test->id, str_command_tokens[test->id], strlen(test->content));
+		log_line("%d: %s (%d content length)\n", test->id, command_strings[test->id], strlen(test->content));
 	}
 	else
 	{
@@ -109,16 +110,11 @@ int main()
 			switch (i)
 			{
 			case RESERVED_STDIN:
-				char buf[1024];
-				int n = read(STDIN_FILENO, buf, sizeof(buf));
-				buf[n] = '\0';
-				log_line("Ricevuto: '%s', ma devo ancora implementare il resto...\n", buf);
-				rewrite_prompt("Lavagna@5678");
-				// TODO
+				if(cli_event()==-1)
+					log_line("Errore nella gestione del comando\n");
 				break;
 
 			case RESERVED_COMMAND_PIPE:
-				read(fd, buf, sizeof(buf)); // svuota la pipe
 				polling_handler();
 				break;
 
@@ -138,7 +134,6 @@ int main()
 				break;
 
 			default: // Gestione di un comando ricevuto da un utente
-
 				int command_id = -1;
 				command_t *command;
 				int status = recv_command(sock_set[i].fd, &command);
@@ -165,7 +160,7 @@ int main()
 
 				if (!network_handling_table[command_id])
 				{
-					fprintf(stderr, "non trovato l'handler associato al comando %s", str_command_tokens[command_id]);
+					fprintf(stderr, "non trovato l'handler associato al comando %s", command_strings[command_id]);
 				}
 				else
 				{
@@ -186,6 +181,7 @@ end:
 		disconnect_user(it);
 		it = next;
 	}
+
 	clear_card_list(&to_do_list);
 	clear_card_list(&doing_list);
 	clear_card_list(&done_list);
@@ -193,5 +189,6 @@ end:
 	close(server_socket);
 
 	end_printing(); // ripristina la finestra
+	close(STDOUT_FILENO);	
 	return 0;
 }

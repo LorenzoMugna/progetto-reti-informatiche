@@ -52,7 +52,7 @@ typedef enum command_token
 
 // Definizione stringhe, da usare con strcmp mentre
 // viene parsato il messaggio (definizione in lib/parser.c)
-extern const char *str_command_tokens[];
+extern const char *command_strings[];
 
 
 // lista di parametri

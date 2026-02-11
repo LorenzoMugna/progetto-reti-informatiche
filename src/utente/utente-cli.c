@@ -59,7 +59,7 @@ int cli_handle_CREATE_CARD(command_t *command)
 	if (!command || !command->content)
 		goto error;
 
-	int err = sendf(my_socket, "%s %s", str_command_tokens[CREATE_CARD], command->content);
+	int err = sendf(my_socket, "%s %s", command_strings[CREATE_CARD], command->content);
 	if (err == -1)
 		goto error;
 
@@ -72,7 +72,7 @@ int cli_handle_SHOW_LAVAGNA(command_t *command)
 {
 	(void)command;
 
-	int err = sendf(my_socket, "%s", str_command_tokens[SHOW_LAVAGNA]);
+	int err = sendf(my_socket, "%s", command_strings[SHOW_LAVAGNA]);
 	if (err == -1)
 		goto error;
 
@@ -93,7 +93,7 @@ int cli_handle_REVIEW_CARD(command_t *command)
 	}
 	current_user_state = STATE_GETTING_USER_LIST;
 	// Richiedi lista utenti  
-	int err = sendf(my_socket, "%s", str_command_tokens[REQUEST_USER_LIST]);
+	int err = sendf(my_socket, "%s", command_strings[REQUEST_USER_LIST]);
 	if (err == -1)
 		goto error;
 
@@ -116,10 +116,12 @@ int cli_handle_CARD_DONE(command_t *command)
 		goto error;
 	}
 
-	int err = sendf(my_socket, "%s", str_command_tokens[CARD_DONE]);
+	int err = sendf(my_socket, "%s", command_strings[CARD_DONE]);
 	if (err == -1)
 		goto error;
 
+	destroy_card(handled_card);
+	handled_card = NULL;
 	current_user_state = STATE_IDLE;
 	return 0;
 error:

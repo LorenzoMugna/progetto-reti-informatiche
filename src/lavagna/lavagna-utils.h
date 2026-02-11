@@ -12,10 +12,10 @@
 
 
 /**
- * @brief Costruisce la visualizzazione della lavagna sull buffer`str`
+ * @brief Costruisce la visualizzazione della lavagna sull buffer `str`
  * lungo `n` caratteri.
  */
-void build_lavagna(char *str, size_t n);
+void build_lavagna(char *str, size_t n, size_t column_width);
 
 /**
  * @brief Costruisce la lista di utenti attualmente connessi sulla stringa `str`,
@@ -30,5 +30,9 @@ void build_user_list(char* str, size_t n, user_t *excluded_user);
  */
 void show_lavagna_handler();
 
+/**
+ * @brief Prova a distribuire le carte non assegnate agli utenti che non stanno gestendo carte.
+ */
+void distribute_cards();
 
 #endif

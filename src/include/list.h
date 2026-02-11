@@ -109,4 +109,6 @@ static inline list_t *pop_back(list_t *head)
 	return pop_elem(head->prev);
 }
 
+#define FOREACH_LIST(iter, list) for(list_t *iter = (list)->next; iter != (list); iter = iter->next)
+
 #endif

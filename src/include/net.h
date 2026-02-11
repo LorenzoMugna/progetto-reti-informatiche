@@ -15,6 +15,9 @@
 #include "parsing.h"
 
 
+// Lunghezza massima di un messaggio: valore massimo che sta in 16 bit
+#define _NETBUFFER_SIZE ((1<<16)-1)
+#define MAX_SEND_SIZE _NETBUFFER_SIZE
 
 /**
  * @brief invia un messaggio sul socket `fd`, seguendo il formato

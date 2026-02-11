@@ -50,6 +50,9 @@ void stop_polling()
 
 void polling_handler()
 {
+	char discard_buf;
+	read(timeout_pipe[0], &discard_buf, sizeof(discard_buf)); 
+
 	// Scorri gli utenti e controlla se qualcuno è scaduto
 	for (list_t *iter = user_list.next; iter != &user_list; iter = iter->next)
 	{
@@ -79,7 +82,7 @@ void polling_handler()
 		case TIMEOUT_PING_USER:
 			log_line("[PING_USER] %hu\n", user_port);
 			int fd = u->socket;
-			sendf(fd, "%s ", str_command_tokens[PING_USER]);
+			sendf(fd, "%s ", command_strings[PING_USER]);
 			u->next_timeout = now + PING_TIMEOUT;
 			u->timeout_type = TIMEOUT_PONG_LAVAGNA;
 			break;

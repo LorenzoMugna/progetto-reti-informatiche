@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "card.h"
 #include "net.h"
 #include "list.h"
 
@@ -27,12 +28,6 @@ typedef enum user_state
 	STATE_DONE				 // L'utente ha finito e può mandare CARD_DONE
 } user_state_t;
 
-extern user_state_t current_user_state;
-extern int my_socket;
-extern struct sockaddr_in my_address;
-
-extern network_handler_t network_handlers[N_COMMAND_TOKENS];
-
 typedef struct useraddr{
 	list_t list;
 	struct sockaddr_in user_address;
@@ -43,6 +38,14 @@ useraddr_t *new_useraddr();
 void destroy_useraddr(useraddr_t *useraddr);
 
 void clear_useraddr_list(list_t *useraddr_list);
+
+extern int my_socket; // Socket usato per comunicare con la lavagna
+extern struct sockaddr_in my_address; //Contiene la porta dell'utente
+extern user_state_t current_user_state;// Stato attuale dell'utente
+extern card_t *handled_card; // Carta attualmente in possesso dell'utente
+extern list_t missing_reviews; // Lista di review mancanti (useraddr_t)
+
+extern network_handler_t network_handlers[N_COMMAND_TOKENS];// Array di handler per i comandi ricevuti dalla lavagna
 
 /**
  * @brief Inizializza un socket per il client
@@ -55,16 +58,28 @@ int init_socket(uint16_t port);
 
 /**
  * @brief Inizializza un socket che permette di ricevere richieste
- * di connessione da parte di altri utent
+ * di connessione da parte di altri utenti
  *
  * @return fd del socket se ha successo, -1 altrimenti
  */
 int init_listener_socket();
 
 /**
+ * @brief gestisce un comando ricevuto dalla lavagna
+ * 
+ * @returns 0 se ha successo, -1 altrimenti
+ */
+int net_event();
+/**
  * @brief accetta le richieste di connessione dagli altri utenti.
  * Si hanno poi due strade in base al comando ricevuto:
- *
+ * 
+ * - se il comando è `REVIEW_CARD request`, viene creato un thread che si occupa di inviare la review
+ *   dopo un intervallo di tempo
+ * 
+ * - se il comando è `REVIEW_CARD accept`, (e lo stato dell'utente è STATE_REVIEWING) viene rimosso
+ *   l'utente dalla lista di review mancanti.
+ *   Se la lista è vuota, l'utente passa in `STATE_DONE`
  *
  * @return 0 se ha successo, -1 altrimenti
  */

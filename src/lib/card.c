@@ -1,6 +1,21 @@
 #include "card.h"
 #include <string.h>
 
+static void filter_newline(char *str)
+{
+	char *read = str, *write = str;
+	while (*read)
+	{
+		if (*read != '\n')
+		{
+			*write = *read;
+			write++;
+		}
+		read++;
+	}
+	*write = '\0';
+}
+
 card_t *new_card(uint64_t ID, char *desc)
 {
 	card_t *card = malloc(sizeof(*card));
@@ -15,6 +30,7 @@ card_t *new_card(uint64_t ID, char *desc)
 
 	if (desc)
 	{
+		filter_newline(desc);
 		size_t bufsize = (size_t)strlen(desc) + 1U;
 		card->desc = malloc(bufsize);
 		if (!card->desc)
