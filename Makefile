@@ -1,6 +1,6 @@
-CFLAGS = -Wall -Wextra -Wpedantic -Werror -g -Og -D_GNU_SOURCE 
+CFLAGS = -Wall -Wextra -Werror -g -Og
 CC = gcc
-LDFLAGS = -g -fsanitize=address -lpthread
+LDFLAGS = -fsanitize=address -lpthread
 SRC_DIR = src
 BUILD_DIR = build
 INCLUDE_DIR = $(SRC_DIR)/include

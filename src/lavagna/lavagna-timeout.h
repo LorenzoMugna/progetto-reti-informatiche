@@ -1,5 +1,5 @@
 /**
- * Insieme di funzioni per gestire i timeout.
+ * @brief Insieme di funzioni per gestire i timeout.
  * vengono inviati comandi alla pipe
  */
 #ifndef TIMEOUT_HANDLER_H
@@ -9,10 +9,10 @@
 #include <stdlib.h>
 #include <time.h>
 
-
-
-extern int timeout_pipe[2];
-
+#define POLLING_PERIOD 1   // Periodo di polling dei timeout in secondi
+#define ACK_CARD_TIMEOUT 5 // Timeout in secondi per l'attesa dell'ACK_CARD dopo un handle card
+#define PING_TIMEOUT 90    // Timeout in secondi per inviare un PING_USER 
+#define PONG_TIMEOUT 30    // Timeout in secondi per l'attesa del PONG_LAVAGNA dopo un PING_USER
 
 /**
  * @brief Inizializza la pipe per inviare comandi
@@ -31,18 +31,14 @@ void destroy_timeout_handler();
  */
 void start_polling();
 
-
 /**
  * @brief termina il polling
  */
 void stop_polling();
 
-
 /**
  * @brief Callback per gestire i timeout
  */
 void polling_handler();
-
-
 
 #endif

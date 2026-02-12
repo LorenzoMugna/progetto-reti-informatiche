@@ -1,4 +1,5 @@
 #include "lavagna-utils.h"
+#include <time.h>
 
 /**
  * @brief `snprintf()` ritorna il numero di caratteri
@@ -28,7 +29,7 @@ static void iter_printing(char *str, size_t column_width, list_t **list_iter, ch
 	card_t *cardp = (card_t *)*list_iter;
 	if (*desc_iter == NULL)
 	{
-		// Inizia nuova carta
+		// Inizia nuova carta: stampa la prima riga e passa al 2ndo stato
 		*desc_iter = cardp->desc;
 		printed = snprintf_wrapper(str, column_width, "ID: %lu User: %hu ", cardp->ID, cardp->user);
 		str += printed;
@@ -38,13 +39,14 @@ static void iter_printing(char *str, size_t column_width, list_t **list_iter, ch
 	{
 		// Stampa la seconda riga
 		struct tm *tm_info = localtime(&cardp->last_changed);
-		printed = snprintf_wrapper(str, column_width - printed, "%02d/%02d/%04d, %02d:%02d:%02d",
+		printed = snprintf_wrapper(str, column_width, "%02d/%02d/%04d, %02d:%02d:%02d",
 								   tm_info->tm_mday,
 								   tm_info->tm_mon + 1,
 								   tm_info->tm_year + 1900,
 								   tm_info->tm_hour,
 								   tm_info->tm_min,
 								   tm_info->tm_sec);
+
 		*desc_iter = cardp->desc;
 	}
 	else if (*desc_iter == (void*)2)
@@ -97,6 +99,12 @@ void build_lavagna(char *str, size_t n, size_t column_width)
 {
 	size_t printed;
 
+	printed = print_sep_line(str, n, column_width, false);
+	str += printed;
+	n -= printed;
+	printed = snprintf_wrapper(str, n, "Lavagna --- ID: %lu\n", id_lavagna);
+	str += printed;
+	n -= printed;
 	printed = print_sep_line(str, n, column_width, true);
 	str += printed;
 	n -= printed;
@@ -120,9 +128,9 @@ void build_lavagna(char *str, size_t n, size_t column_width)
 	char *done_iter_pointer = NULL;
 	while ((to_do_iter != &to_do_list || doing_iter != &doing_list || done_iter != &done_list) && n > 0)
 	{
-		char to_do_str[25] = {0},
-			 doing_str[25] = {0},
-			 done_str[25] = {0};
+		char to_do_str[LAVAGNA_COLUMN_WIDTH+1] = {0},
+			 doing_str[LAVAGNA_COLUMN_WIDTH+1] = {0},
+			 done_str[LAVAGNA_COLUMN_WIDTH+1] = {0};
 
 		if (to_do_iter != &to_do_list)
 			iter_printing(to_do_str, column_width, &to_do_iter, &to_do_iter_pointer);
@@ -148,6 +156,11 @@ void build_lavagna(char *str, size_t n, size_t column_width)
 void build_user_list(char *str, size_t n, user_t *excluded_user)
 {
 	size_t printed;
+	if (current_users == 1)
+	{
+		*str = '\0';
+		return;
+	}
 	user_t *user = (user_t *)user_list.next;
 	for (; &user->list != &user_list && n > 0; user = (user_t *)user->list.next)
 	{
@@ -155,10 +168,7 @@ void build_user_list(char *str, size_t n, user_t *excluded_user)
 		if (user == excluded_user)
 			continue;
 		uint16_t port = ntohs(user->sockaddr.sin_port);
-		char inet_buffer[20];
-		inet_ntop(AF_INET, &user->sockaddr.sin_addr, inet_buffer, sizeof(inet_buffer));
-		printed = snprintf_wrapper(str, n, "%s:%u ", inet_buffer, port);
-		log_line("%s\n", str);
+		printed = snprintf_wrapper(str, n, "%hu ", port);
 		str += printed;
 		n -= printed;
 	}
@@ -175,7 +185,7 @@ int send_card_to_handle(user_t *user, card_t *card)
 	build_user_list(buf, sizeof(buf), user);
 	int err = sendf(user->socket, "%s %u %s %s",
 					command_strings[HANDLE_CARD],
-					current_users,
+					current_users-1,
 					buf,
 					card->desc);
 	if (err == -1)
@@ -197,7 +207,6 @@ error:
 
 void distribute_cards()
 {
-	// Per ogni utente, se non sta gestendo carte, dagli una carta da fare
 	list_t *iter = user_list.next;
 	list_t *card_iter = to_do_list.next;
 	while (iter != &user_list)

@@ -1,13 +1,12 @@
 #include "net.h"
 #include "printing.h"
 
-
 #include <stdio.h>
 
 typedef struct message
 {
 	uint16_t content_length;
-	char netbuffer[MAX_SEND_SIZE+1]; // +1 perché il terminatore di stringa non è incluso
+	char netbuffer[MAX_SEND_SIZE + 1]; // +1 perché il terminatore di stringa non è incluso
 } message_t;
 
 static message_t message_buffer;
@@ -36,14 +35,19 @@ int sendf(int fd, const char *format, ...)
 int recv_command(int fd, command_t **out)
 {
 	int ret = recv(fd, &message_buffer, sizeof(message_buffer.content_length), 0);
-	if (ret < (int) sizeof(message_buffer.content_length))
+	if (ret < (int)sizeof(message_buffer.content_length))
 		goto error;
 
 	uint16_t to_read = ntohs(message_buffer.content_length);
 	message_buffer.netbuffer[to_read] = '\0';
-	ret = recv(fd, &message_buffer.netbuffer, (int)to_read, 0);
-	if (ret==-1 || (uint32_t) ret < to_read || ret == 0)
-		goto error;
+	uint16_t total_received = 0;
+	while (total_received < to_read)
+	{
+		ret = recv(fd, &message_buffer.netbuffer[total_received], (int)(to_read - total_received), 0);
+		if (ret == -1 || (uint32_t)ret < to_read || ret == 0)
+			goto error;
+		total_received += (uint16_t)ret;
+	}
 
 	message_buffer.netbuffer[_NETBUFFER_SIZE] = '\0';
 	*out = parse_command(message_buffer.netbuffer);

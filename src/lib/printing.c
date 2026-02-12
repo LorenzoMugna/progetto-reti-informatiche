@@ -33,6 +33,7 @@ void end_printing()
 {
 	// togli finestra di scorrimento, posiziona il cursore in fondo e 
 	// vai ad una riga nuova
+	get_console_height();
 	printf("\033[r\033[%d;1H\n", console_height);
 	fflush(stdout);
 }

@@ -1,3 +1,6 @@
+/**
+ * @brief Definizione della struttura dati `card_t` e funzioni per la sua gestione.
+ */
 #ifndef CARD_H
 #define CARD_H
 
@@ -6,7 +9,6 @@
 #include <time.h>
 #include "list.h"
 
-extern uint64_t last_card_id;
 
 typedef struct card_list
 {

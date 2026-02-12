@@ -4,77 +4,67 @@
 #include "lavagna-cli.h"
 #include "printing.h"
 #include <signal.h>
-#include <setjmp.h>
 
 int running;
 
-void parse_test()
-{
-	char testcmnd[] = "HELLO \n\n";
-	char temp[sizeof(testcmnd)];
-	memcpy(temp, testcmnd, strlen(testcmnd) + 1);
-	// test memory leak
-	command_t *test = parse_command(temp);
-	destroy_command(test);
-
-	memcpy(temp, testcmnd, strlen(testcmnd) + 1);
-	test = parse_command(temp);
-
-	if (test)
-	{
-		log_line("%d: %s (%d content length)\n", test->id, command_strings[test->id], strlen(test->content));
-	}
-	else
-	{
-		log_line("Not found.\n");
-	}
-
-	log_line("%s\n", test->content);
-
-	destroy_command(test);
-}
-
-void card_test()
-{
-
-	char msg[] = "Hello world!";
-	for (int i = 0; i < 3; i++)
-	{
-		card_t *elem = malloc(sizeof(*elem));
-		elem->ID = i + 1;
-		elem->desc = msg;
-
-		push_back(&to_do_list, &elem->list);
-	}
-	show_lavagna_handler();
-
-	list_t *elem = pop_back(&to_do_list);
-	push_back(&done_list, elem);
-	show_lavagna_handler();
-}
-
-jmp_buf exit_jump_buffer;
 void exit_handler(int sig)
 {
 	(void)(sig); // Evita warning parametro non usato
 	running = 0; // Ferma il ciclo principale
 }
 
+const char *card_descriptions[] = {
+	"Implementare la funzione di parsing dei comandi",
+	"Implementare la gestione degli utenti",
+	"Implementare la comunicazione di rete",
+	"Implementare la CLI della lavagna",
+	"Implementare la CLI dell'utente",
+	"Implementare i timeout per le carte gestite dagli utenti",
+	"Testare il progetto",
+	"Debug dei messaggi con Wireshark",
+	"Consegnare il progetto",
+	"Sostenere esame di reti informatiche",
+	NULL,
+};
+
+int create_cards()
+{
+	char buffer[256];
+	for (int i = 0; card_descriptions[i] != NULL; i++)
+	{
+		memcpy(buffer, card_descriptions[i], strlen(card_descriptions[i]) + 1);
+		card_t *card = new_card(last_card_id + 1, buffer);
+		if (!card)
+			return -1;
+		last_card_id++;
+		push_back(&to_do_list, &card->list);
+	}
+	return 0;
+}
+
 int main()
 {
+	signal(SIGPIPE, SIG_IGN);
 	init_state();
 	int server_socket = init_server();
 	if (server_socket == -1)
 	{
 		fprintf(stderr, "Errore inizializzazione server");
-		exit(1);
+		goto end;
 	}
 
 	int pipe = init_timeout_handler();
 	if (pipe == -1)
 	{
 		fprintf(stderr, "Errore inizializzazione timeout handler");
-		exit(1);
+		goto end;
+	}
+
+
+	if (create_cards() == -1)
+	{
+		fprintf(stderr, "Errore creazione carte di esempio");
+		goto end;
 	}
 
 	signal(SIGINT, exit_handler);
@@ -82,6 +72,9 @@ int main()
 
 	init_printing();
 	rewrite_prompt("Lavagna@5678");
+
+	log_line("Lavagna inizializzata. Scriva HELP per una lista di comandi\n"
+			 "eseguibili da terminale.\n");
 	running = 1;
 	// Ciclo principale della lavagna: attendi ricezione di un evento e gestiscilo
 	while (running)
@@ -96,6 +89,7 @@ int main()
 				{
 					user_t *user = find_user_from_fd(sock_set[i].fd);
 					disconnect_user(user);
+					i--; // Decrementa i per evitare di saltare l'elemento successivo dopo la rimozione
 				}
 				continue;
 			}
@@ -125,21 +119,27 @@ int main()
 					break;
 				}
 
-				user_t *last_user = (user_t *)user_list.prev;
-				uint16_t port = ntohs(last_user->sockaddr.sin_port);
-				char netaddr[20];
-				inet_ntop(AF_INET, &last_user->sockaddr.sin_addr, netaddr, sizeof(netaddr));
-				log_line("New User! (%d) %s:%hu\n", current_users, netaddr, port);
+				uint16_t new_user_port = (uint16_t)ret;
+				log_line("Nuovo utente: %hu\n", new_user_port);
 				break;
 
 			default: // Gestione di un comando ricevuto da un utente
-				int command_id = -1;
+				user_t *user = find_user_from_fd(fd);
+				uint16_t user_port = ntohs(user->sockaddr.sin_port);
+
+				if (!user)
+				{
+					log_line("PANIC: non trovato l'utente associato al file descriptor %d", fd);
+					goto end;
+				}
+
 				command_t *command;
 				int status = recv_command(sock_set[i].fd, &command);
+
 				if (status == -1)
 				{
-					log_line("Errore nella ricezione del comando da parte dell'utente associato al file descriptor %d\n", fd);
-					disconnect_user(find_user_from_fd(fd));
+					log_line("Errore nella ricezione del comando da parte dell'utente %hu\n", user_port);
+					disconnect_user(user);
 					break;
 				}
 
@@ -149,22 +149,8 @@ int main()
 					break;
 				}
 
-				command_id = command->id;
-				user_t *user = find_user_from_fd(fd);
-				if (!user)
-				{
-					log_line("PANIC: non trovato l'utente associato al file descriptor %d", fd);
-					goto end;
-				}
-
-				if (!network_handling_table[command_id])
-				{
-					fprintf(stderr, "non trovato l'handler associato al comando %s", command_strings[command_id]);
-				}
-				else
-				{
-					network_handling_table[command_id](user, command);
-				}
+				if (network_handling_table[command->id])
+					network_handling_table[command->id](user, command);
 
 				destroy_command(command);
 				break;
@@ -172,8 +158,10 @@ int main()
 		}
 	}
 
-	// Routine di uscita, raggiunta tramite longjmp (vedi exit_handler)
 end:
+	stop_polling();
+	destroy_timeout_handler();
+
 	for (user_t *it = (user_t *)user_list.next; it != (user_t *)&user_list;)
 	{
 		user_t *next = (user_t *)it->list.next;
@@ -184,7 +172,6 @@ end:
 	clear_card_list(&to_do_list);
 	clear_card_list(&doing_list);
 	clear_card_list(&done_list);
-	destroy_timeout_handler();
 	close(server_socket);
 
 	end_printing(); // ripristina la finestra

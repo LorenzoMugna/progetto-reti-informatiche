@@ -1,5 +1,5 @@
 /**
- * Funzioni per implementare la stampa sopra il cursore
+ * @brief Funzioni per implementare la stampa sopra il cursore
  * dell'inserimento dei comandi.
  * 
  * Per un riferimento alle sequenze ANSI : https://ansi.tools/lookup
@@ -12,7 +12,6 @@
 /**
  * @brief usata per ottenere la dimensione della console 
  * che sta eseguendo il programma.
- * 
  *
  * @returns il numero di righe nella console attuale o -1 in caso di errore
  */
@@ -26,7 +25,7 @@ void init_printing();
 
 /**
  * @brief ripristina il terminale alla normalità, togliendo la finestra
- * di scorirmento.
+ * di scorrimento.
  * 
  * @note ricordarsi di chiamare questa funzione all'uscita del programma
  */

@@ -2,57 +2,17 @@
  * @author Lorenzo Mugnaioli
  * @brief definizione funzioni per gestire messaggi scambiati tra gli host
  */
-#include "parser.h"
+#include "parsing.h"
 
 #include <arpa/inet.h>
 #include <malloc.h>
 #include <string.h>
+#include <stdlib.h>
 
 const char *command_strings[] = {
 	COMMAND_TOKENS,
 	NULL // NULL terminated: riconoscere la fine mentre vengono scorsi tutti i possbili token
 };
-
-inline char unescape_char(char c)
-{
-	switch (c)
-	{
-	case '\\':
-		return '\\';
-
-	case 'n':
-		return '\n';
-
-	case '\0':
-		return '\0';
-	default:
-		return '\0';
-	}
-}
-
-void unescape(char *str)
-{
-	if (!str)
-	{
-		return;
-	}
-
-	char *read = str;
-	char *write = str;
-	while (*read)
-	{
-		*write = *read;
-		if (*read == '\\')
-		{
-			read++;
-			*write = unescape_char(*read);
-			if (!(*read)) // controlla fine stringa inaspettato
-				return;
-		}
-		read++;
-		write++;
-	}
-}
 
 void trim(char *to_trim)
 {
@@ -108,7 +68,7 @@ command_t *parse_command(char *string)
 
 	char *tok_state = NULL;
 
-	char *id_token = __strtok_r(string, " \n", &tok_state);
+	char *id_token = strtok_r(string, " \n", &tok_state);
 	trim(id_token);
 	out->id = find_command_id(id_token);
 

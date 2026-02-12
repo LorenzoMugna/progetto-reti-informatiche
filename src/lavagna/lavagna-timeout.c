@@ -51,13 +51,19 @@ void stop_polling()
 void polling_handler()
 {
 	char discard_buf;
-	read(timeout_pipe[0], &discard_buf, sizeof(discard_buf)); 
+	int discard = read(timeout_pipe[0], &discard_buf, sizeof(discard_buf));
+	// Evita warning variabile non usata
+	(void)discard_buf;
+	(void)discard;
 
 	// Scorri gli utenti e controlla se qualcuno è scaduto
-	for (list_t *iter = user_list.next; iter != &user_list; iter = iter->next)
+	list_t* next;
+	for (list_t *iter = user_list.next; iter != &user_list; iter = next)
 	{
 		user_t *u = (user_t *)iter;
-
+		// Salva il prossimo elemento, l'elemento corrente potrebbe essere rimosso
+		// in caso di timeout in PONG_LAVAGNA
+		next = iter->next; 
 		if (u->timeout_type == TIMEOUT_NONE)
 			continue;
 
@@ -77,13 +83,15 @@ void polling_handler()
 				break;
 			card->user = 0; // Rilascia la carta
 			u->handled_card = NULL;
+			u->next_timeout = 0;
+			u->timeout_type = TIMEOUT_NONE;
 			break;
 
 		case TIMEOUT_PING_USER:
-			log_line("[PING_USER] %hu\n", user_port);
+			log_line("[PING_USER] -> %hu\n", user_port);
 			int fd = u->socket;
 			sendf(fd, "%s ", command_strings[PING_USER]);
-			u->next_timeout = now + PING_TIMEOUT;
+			u->next_timeout = now + PONG_TIMEOUT;
 			u->timeout_type = TIMEOUT_PONG_LAVAGNA;
 			break;
 

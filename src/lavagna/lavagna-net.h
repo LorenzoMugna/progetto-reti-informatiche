@@ -67,8 +67,7 @@ user_t *find_user_from_fd(int fd);
  * (timeout = `LAVAGNA_TIMEOUT`).
  * Dopodiché, l'utente viene inserito nella `user_list`.
  *
- * @returns il file descrtiptor associato alla connessione TCP
- * stabilita con il nuovo utente o -1 in caso di errore.
+ * @returns la porta del nuovo utente in caso di successo o -1 in caso di errore
  */
 int accept_user(int server_fd);
 

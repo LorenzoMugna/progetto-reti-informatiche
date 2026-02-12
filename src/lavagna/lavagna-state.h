@@ -20,10 +20,12 @@
 #define MAX_PORT ((1 << 16) - 1)
 
 /* ---- VARIABILI DI STATO ---- */
-extern list_t to_do_list; // Contenitore di `card_t`
-extern list_t doing_list; // Contenitore di `card_t`
-extern list_t done_list;  // Contenitore di `card_t`
-extern list_t user_list;  // Contenitore di `user_t`
+extern list_t to_do_list;	  // Contenitore di `card_t`
+extern list_t doing_list;	  // Contenitore di `card_t`
+extern list_t done_list;	  // Contenitore di `card_t`
+extern list_t user_list;	  // Contenitore di `user_t`
+extern uint64_t last_card_id; // Ultimo ID utilizzato per una carta
+extern uint64_t id_lavagna;
 
 // Accesso rapido al descrittore di un utente con una porta specifica
 extern user_t *user_table[MAX_PORT];
@@ -38,7 +40,6 @@ void init_state();
  * @param b puntatore alla testa della card
  */
 void print_cardlist(list_t *b);
-
 
 /**
  * @brief esegue un comando ricevuto da terminale, già parsato.

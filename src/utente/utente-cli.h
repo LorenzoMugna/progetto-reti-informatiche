@@ -13,5 +13,4 @@ extern cli_handler_t cli_handlers[N_COMMAND_TOKENS];
  */
 int cli_event();
 
-
 #endif

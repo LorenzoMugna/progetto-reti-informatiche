@@ -2,6 +2,6 @@ build/**
 /utente
 /lavagna
 *.pdf
-
+*.zip
 # output errori
 log.txt

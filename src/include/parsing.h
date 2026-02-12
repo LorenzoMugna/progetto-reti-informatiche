@@ -1,12 +1,10 @@
 /**
- * @author Lorenzo Mugnaioli
- * @brief Definizioni di token usate per il parsing dei messaggi
- * scambiati tra gli host dell'applicazione
+ * @brief Funzioni utilizzate per il parsing dei
+ * comandi ricevuti da terminale o da rete.
  */
-#ifndef TOKENS_H
-#define TOKENS_H
+#ifndef PARSING_H
+#define PARSING_H
 
-#include "list.h"
 
 #include <arpa/inet.h>
 #include <stddef.h>
@@ -54,13 +52,6 @@ typedef enum command_token
 // viene parsato il messaggio (definizione in lib/parser.c)
 extern const char *command_strings[];
 
-
-// lista di parametri
-typedef struct command_arg_list
-{
-	list_t list;
-	char *buffer;
-} command_arg_list_t;
 
 /**
  * @brief Struttura che descrive un comando;

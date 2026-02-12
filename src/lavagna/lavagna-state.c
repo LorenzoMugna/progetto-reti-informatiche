@@ -15,6 +15,7 @@ list_t done_list;
 list_t user_list;
 uint64_t last_card_id;
 user_t *user_table[MAX_PORT];
+uint64_t id_lavagna;
 
 void init_state()
 {
@@ -23,12 +24,13 @@ void init_state()
 	init_list(&done_list);
 	init_list(&user_list);
 	last_card_id = 0;
+	id_lavagna = 1;
 	memset(user_table, 0, sizeof(user_table));
 }
 
 
 
-void show_lavagna_handler()
+void show_lavagna()
 {
 	char buf[65536];
 	build_lavagna(buf, sizeof(buf), LAVAGNA_COLUMN_WIDTH);

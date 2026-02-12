@@ -1,4 +1,5 @@
 #include "card.h"
+#include "printing.h"
 #include <string.h>
 
 static void filter_newline(char *str)
@@ -31,6 +32,14 @@ card_t *new_card(uint64_t ID, char *desc)
 	if (desc)
 	{
 		filter_newline(desc);
+		while(*desc == ' ')
+			desc++;
+		if (strlen(desc) == 0)
+		{
+			card->desc = NULL;
+			log_line("Impossibile creare una carta con una descrizione vuota.\n");
+			goto card_created_error;
+		}
 		size_t bufsize = (size_t)strlen(desc) + 1U;
 		card->desc = malloc(bufsize);
 		if (!card->desc)

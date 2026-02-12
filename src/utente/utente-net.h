@@ -11,7 +11,7 @@
 #include "net.h"
 #include "list.h"
 
-#define MAX_BACKLOG 8
+#define MAX_BACKLOG 32
 
 #define _UTENTE_TIMEOUT ((struct timeval){1, 0})
 
@@ -70,6 +70,7 @@ int init_listener_socket();
  * @returns 0 se ha successo, -1 altrimenti
  */
 int net_event();
+
 /**
  * @brief accetta le richieste di connessione dagli altri utenti.
  * Si hanno poi due strade in base al comando ricevuto:

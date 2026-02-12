@@ -1,8 +1,8 @@
 #import "style/style.typ": document
 #import "@preview/cetz:0.4.2"
 
-#context{
-  if (counter(page).final().at(0)>2) {
+#context {
+  if (counter(page).final().at(0) > 2) {
     panic("Limite pagine superato")
   }
 }
@@ -11,59 +11,60 @@
   subtitle: [Lorenzo Mugnaioli, 677231],
 )
 
-// Previeni seprarazione di I/O e di vari acronimi
+// Previeni separazione di I/O e di vari acronimi
 #show "I/O": box
 #show regex("\b[A-Z]+\b"): box
 
 = Istruzioni di compilazione
-Nella cartella del progetto eseguire il comando
-#highlight[`make all`]. Saranno prodotti due link simbolici
-`./lavagna` e `./utente` nella cartella radice del progetto,
-che possono essere eseguiti come descritto nelle specifiche.
-
-Il codice è diviso in 4 cartelle:
-- `/lib/` e `/include/`: contengono rispettivamente
+Il codice è suddiviso in 4 cartelle:
+- `src/lib/` e `src/include/`: contengono rispettivamente
   sorgenti e header relativi a funzioni utili sia per la
   lavagna che per l'utente
-- `/utente/`: sorgenti relativi all'utente
-- `/lavagna/`: sorgenti relativi alla lavagna
+- `src/utente/`: sorgenti e header relativi all'utente
+- `src/lavagna/`: sorgenti e header relativi alla lavagna
+
+Nella stessa cartella in cui è presente il Makefile,
+eseguire il comando #highlight[`make all`]. Al termine
+della compilazione saranno prodotti due link simbolici,
+`./lavagna` e `./utente`, nella cartella radice del progetto,
+che possono essere eseguiti come descritto nelle specifiche.
+
+*Cambiare la dimensione della finestra mentre i programmi 
+sono in esecuzione potrebbe causare problemi di
+visualizzazione.  Si consiglia di posizionare prima le
+finestre e poi mandare in esecuzione i programmi.*
 
 
 = Protocollo applicativo
-L'applicazione descritta dalle specifiche di progetto
-si tratta di un'applicazione _loss-sensitive_ (ad esempio,
-le descrizioni delle card create devono essere corrette).
-L'applicazione non necessita né di trasferimenti di grandi
-quantità di dati né di garanzie su latenza o throughput:
-non si tratta qunidi di un'applicazione _time-sensitive_.
+L'applicazione descritta nelle specifiche di progetto
+è *loss-sensitive*. Ad esempio, le descrizioni delle card
+create devono essere trasmesse senza errori. L'applicazione non
+necessita di garanzie su latenza o throughput
+particolarmente stringenti: non si tratta quindi di
+un'applicazione *time-sensitive*.
+
 Per questi due motivi ho quindi deciso di ricorrere al
 protocollo di trasporto TCP.
 
 == Binary contro Text
 Le informazioni contenute nei messaggi sono composte
-principalmente da 2 tipi di informazioni:
+per la maggior parte da stringhe di testo di lunghezza
+variabile, con l'unica eccezione delle liste di
+porte inviate nei messaggi scambiati nelle implementazioni
+di `HANDLE_CARD` e `SEND_USER_LIST`.
 
-+ le descrizioni delle card -- scambiate ad esempio quando
-  un utente richiede la creazione di una nuova _card_ o
-  richiede lo stato corrente della lavagna per la
-  visualizzazione sul terminale -- che sono solo testo,
-  non c'è nessun vantaggio nell'utilizzare un protocollo
-  binario in questo caso
+Ho quindi optato per un protocollo di tipo *text*, con
+lo svantaggio di dover creare una logica di parsing dei
+messaggi in arrivo.
 
-+ i numeri di porta degli utenti connessi
-  (`REQUEST_USER_LIST`): in questo caso un protocollo
-  binario esprime qualsiasi porta in 2 byte, mentre un
-  protocollo testuale può richiedere fino a 5 byte; non
-  solo è maggiore, ma è anche a lunghezza variabile,
-  quindi è richiesto un carattere aggiuntivo per segnalare
-  la fine di una porta e l'inizio della successiva!
-
-Alla fine ciò che ha condizionato maggiormente la scelta
-è stato il punto 1 e ho scelto di implementare un
-protocollo di tipo _text_.  Questa scelta ha inoltre semplificato
-notevolmente le fasi di debug durante lo sviluppo del
-progetto, essendo il contenuto dei messaggi facilmente
-leggibile da Wireshark.
+I vantaggi di questa scelta si sono resi evidenti
+nell'immediatezza con cui vengono costruiti i messaggi,
+non dovendo pensare all'endianness e costruendo un
+messaggio in maniera analoga all'utilizzo di una
+`printf()`.
+Ritengo che la fase di debug sia stata notevolmente
+semplificata come conseguenza di questa scelta, essendo il
+contenuto dei messaggi facilmente leggibile da Wireshark.
 
 Dalle specifiche di progetto il
 numero di byte da leggere deve essere comunicato: il
@@ -90,42 +91,46 @@ lunghezza, espressa in binario, come mostrato in @msg-format.
 = Struttura dell'applicazione
 == Lavagna
 La _lavagna_ deve gestire uno stato che può
-essere modificato da tante parti (i vari utenti).
-Le due possibili decisioni progettuali che sono
-possibili sono:
-+ Lavagna multi-threaded: richiede di implementare accesso
-  in mutua esclusione alle variabili di stato
+essere modificato da diverse parti (i vari utenti).
+Inoltre, le interazioni lavagna-utente sono molto brevi e
+sparse su grandi intervalli di tempo.
 
-+ Lavagna single-threaded: richiede di implementare
-  multiplexing I/O tra i vari utenti.
+Considerato quanto sopra, ho optato per mantenere la
+lavagna single-threaded, ritenendo un singolo thread
+sufficiente a gestire le richieste provenienti dai vari
+utenti e facilitando così il mantenimento della
+consistenza delle varie strutture dati.
 
-Ho optato per la seconda, dato che il tempo di interazione
-effettivo tra lavagna e utenti è una piccola frazione del
-tempo in cui i programmi rimangono in esecuzione ; inoltre
-ritengo che l'implementazione con multiplexing I/O risulti
-in codice più facilmente mantenibile rispetto ad
-un'implementazione con accesso in mutua esclusione.
+In compenso, ho dovuto implementare un meccanismo di
+multiplexing I/O che supporti una quantità di socket variabile
+nel tempo: a tale scopo ho utilizzato la funzione `poll()`,
+più adatta per questo specifico _use-case_ rispetto alla
+`select()`; quest'ultima richiede la ricostruzione del
+`fd_set` ad ogni utilizzo.
 
-La gestione dei timeout è stata implementata con un
-metodo di polling, ovvero periodicamente vengono
-controllati i timeout associati agli utenti connessi
-per poi essere opportunamente gestiti. Per evitare attese
-attive si è fatto ricorso alla chiamata `alarm()` e
-alla definizione di un handler per `SIGALRM`.
+La gestione dei timeout è stata implementata tramite
+polling. Per evitare attese attive si è fatto ricorso alla
+chiamata `alarm()` e alla definizione di un handler per
+`SIGALRM`.
 
-Per evitare l'accesso alle strutture dati in momenti
-inopportuni da parte dell'handler (ad esempio mentre
-è in esecuzione la routine di gestione di una richiesta
-di un utente, che può a sua volta accedere alle strutture
-sopracitate), quest'ultimo si limita a segnalare il
+Per evitare l'accesso alle strutture dati comuni
+in maniera concorrente, l'handler si limita a segnalare il
 passaggio del periodo di polling scrivendo in una pipe,
 il cui _file descriptor_ dell'estremità di lettura è
-compreso nel meccanismo di multiplexing.
+compreso nel meccanismo di multiplexing di cui sopra.
 
-
+=== Strutture dati
+Per effettuare facilmente aggiunte e rimozioni di card e
+utenti dai vari elenchi, le tre colonne (To Do, Doing,
+Done) della lavagna e la lista degli utenti sono
+implementate con liste doppiamente concatenate.
+Alla lista degli utenti è affiancata una tabella di
+corrispondenza tra numeri di porta e descrittori degli
+utenti, in modo da accedere velocemente ad un utente con
+porta nota.
 
 == Utente
-L'utente si tratta di un'entità non banale pur essendo
+L'utente è un'entità non banale pur essendo
 più semplice della lavagna: non deve gestire uno stato
 comune modificato da più attori ma deve supportare
 la comunicazione con gli altri utenti e mantenere un suo
@@ -134,7 +139,7 @@ stato interno (@user-fsm).
 #figure(caption: [State Machine dell'utente (escluse fasi
   di connessione e di disconnessione)])[
 
-  #set text(size: 7pt)
+  #set text(size: 6.95pt)
   #show text: it => align(center)[#it]
   #show math.equation: it => align(center)[#it]
   #set par(spacing: 0em)
@@ -170,7 +175,7 @@ stato interno (@user-fsm).
     start = "state-handling.-35deg"
     end = "state-getting-user-list.72deg"
     bezier(start, end, (rel: (0.5, 0.25), to: (start, 50%, end)), name: "transition-2")
-    content((rel:(-0.5,0.1), to:"transition-2.60%"))[#box(fill: white, outset: 2pt)[
+    content((rel: (-0.5, 0.1), to: "transition-2.60%"))[#box(fill: white, outset: 2pt)[
       richiesta review\ #dline(end: (100%, 0%))\ invio REQUEST USER LIST]]
 
     start = "state-getting-user-list.-105deg"
@@ -194,65 +199,57 @@ stato interno (@user-fsm).
     content((rel: (-0.4, -0.1), to: "transition-5.50%"))[
       #box(fill: white, outset: 2pt)[ $Lambda$\ #dline(length: 100%)\ invio CARD DONE ]]
 
+    start = "state-reviewing.110deg"
+    end = "state-handling.-160deg"
+    bezier(start, end, (rel: (-1, 1.0), to: (start, 50%, end)), name: "transition-5")
+    content((rel: (-0.1, -1), to: "transition-5.50%"))[
+      #box(fill: white, outset: 2pt)[ Errore invio REVIEW CARD \ #dline(length: 100%)\ $Lambda$]]
+
     end = "state-idle.135deg"
     start = (rel: (-1, 1), to: end)
-    line(start, end, stroke: (dash: (3pt, 1.5pt)))
+    line(start, end, stroke: (thickness: 0.7pt, dash: (3pt, 1pt)))
   })
 ]<user-fsm>
 
-Dato che in qualunque momento un utente deve poter
-richiedere la review, un socket dell'utente associato
+Dato che in qualunque momento un utente potrebbe ricevere
+richieste di review, un socket dell'utente associato
 alla stessa porta con cui esso comunica con la lavagna
-rimane in ascolto #footnote[Ottenere questo comportamento
+rimane in ascolto (`listen()`)#footnote[
+  Ottenere questo comportamento
   richiede di impostare ad 1 `SO_REUSEADDR` e `SO_REUSEPORT`
-  tramite la funzione `setsockopt()`.].
+  tramite la funzione `setsockopt()`.
+].
 
-Qui sorge un problema: un utente deve poter mandare
-richieste a tanti utenti e ricevere risposte dopo qualche
-secondo; non è pensabile aspettare la risposta di una
-richiesta prima di inviare la successiva. Di nuovo le
-opzioni sono 2:
-+ Connessioni non persistenti: ovvero usare due connesisoni
-  TCP distinte per la richiesta e per la risposta
-+ Implementare un sistema di multiplexing I/O simile a
-  quello della lavagna per le connessioni attive tra gli
-  utenti
+Si pone quindi il problema: un utente deve poter mandare
+richieste di revisione a (possibilmente) tanti utenti e
+ricevere risposte dopo qualche secondo; non è pensabile
+aspettare la risposta di una richiesta prima di inviare la
+successiva.
 
-Essendo l'applicazione elastica dal punto di vista della
-banda, ho ritenuto l'overhead comportato dall'apertura di
-più connessioni TCP meno gravoso della complicazione del
-codice utente dovuta all'implementazione di un sistema di
-multiplexing #footnote[Un meccanismo di multiplexing è
-  presente nel programma relativo all'utente, ma i file
-  descriptor sono fissati all'inizio dell'esecuzione].
+Una possibile soluzione è utilizzare due connessioni TCP
+distinte per la richiesta di revisione e la risposta.
+Questa soluzione ha lo svantaggio di avere un overhead per
+l'apertura di più connessioni ma presenta il vantaggio di
+poter gestire in maniera indipendente la richiesta e la
+risposta: un utente può mandare tante richieste aprendo e
+chiudendo le connessioni per poi ricevere le risposte
+prestando attenzione solo al socket di ascolto.
 
-Le connssioni non persistenti garantiscono una maggiore
-flessibilità nell'interazione tra gli utenti:
-è possibile intercettare sia richieste di review sia
-risposte a richieste di review prestando attenzione solo
-al socket su cui l'utente rimane in ascolto, dato che
-entrambe queste operazioni richiedono l'apertura di una
-nuova connessione (non devo trasferire la gestione di una
-connessione già aperta tra il thread principale e il nuovo
-thread).
-
-Infine, dato che l'operazione di risposta ad una richiesta
+Dato che l'operazione di risposta ad una richiesta
 di revisione è un'operazione completamente sconnessa
 rispetto al resto delle operazioni svolte da un utente,
-viene generato un nuovo thread che per prima cosa
-invoca `sleep()`, per poi rispondere aprendo e chiudendo
-una connessione all'interno della funzione che il thread
-va ad eseguire.
+viene generato un nuovo thread che risponde dopo un
+intervallo di tempo casuale.
 
-= Esempio
+= Esempio interazione
 Vorrei concludere la documentazione andando ad esporre
 il funzionamento del protocollo applicativo mostrando ciò
-che avviene durante la fase di revisione, che è la fase
+che avviene durante la fase di revisione, probabilmente la
 più complessa che un utente attraversa.
-Negli schemi sottostanti verranno esclusi i primi 2 byte
+Negli schemi sottostanti sono esclusi i primi 2 byte
 di lunghezza.
 
-== Richiesta lista utenti
+== Richiesta della lista degli utenti
 #figure(placement: none, caption: [Richiesta lista utenti e formato
   messaggi. I rettangoli vuoti rappresentano spazi e tutti i numeri
   (compresi i numeri di porta) sono scritti testualmente.])[
@@ -310,31 +307,92 @@ di lunghezza.
 
 == Richiesta review
 
-#figure(placement: none, caption: [Formato del messaggio di richeista review
-  e approvazione review])[
+#figure(placement: none, caption: [Formato del messaggio di richiesta review
+  e approvazione review. Ogni freccia rappresenta una diversa connessione.])[
   #set text(size: 9pt)
-  #cetz.canvas({
-    import cetz.draw: *
-    rect((), (rel: (2.8, -0.5)), name: "cmd")
-    content("cmd")[`REVIEW_CARD`]
-    rect("cmd.north-east", (rel: (0.2, -0.5)), name: "space")
-    rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
-    content("arg")[`request`]
-    rect((rel: (0, -1), to: "cmd.north-west"), (rel: (2.8, -0.5)), name: "cmd")
-    content("cmd")[`REVIEW_CARD`]
-    rect("cmd.north-east", (rel: (0.2, -0.5)), name: "space")
-    rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
-    content("arg")[`accept`]
-  })
+  #set box(fill: white, outset: 0.2em)
+  #grid()[
+    #cetz.canvas({
+      import cetz.draw: *
+      content((), name: "utente")[Utente]
+      content((rel: (5, 0), to: "utente"), name: "u1")[Altri utenti]
+      anchor("u1", (rel: (-0.3, 0), to: "u1.south"))
+      anchor("u2", (rel: (0.3, 0)))
+      anchor("u3", (rel: (0.3, 0)))
+      set-style(mark: (end: "straight"))
+      line((rel: (0, -0.2), to: "utente.south"), (rel: (0, -4.5)))
+      line((rel: (0, -0.2), to: "u1"), (rel: (0, -4.5)))
+      line((rel: (0, -0.2), to: "u2"), (rel: (0, -4.5)))
+      line((rel: (0, -0.2), to: "u3"), (rel: (0, -4.5)))
+
+      line((rel: (0, -0.5), to: "utente.south"), (rel: (0, -1), to: "u1", update: false))
+      line((rel: (0, -0.3)), (rel: (0, -1.3), to: "u2", update: false), name: "requests")
+      line((rel: (0, -0.3)), (rel: (0, -1.6), to: "u3", update: false))
+      content("requests.50%")[#box[Richieste]]
+
+      line((rel: (0, -2.5), to: "u1"), (rel: (-4.7, -1), update: false))
+      line((rel: (0, -2.6), to: "u3"), (rel: (-5.3, -1.17), update: false), name: "responses")
+      line((rel: (0, -2.9), to: "u2"), (rel: (-5, -1.15), update: false))
+      content("responses.50%")[#box[Risposte]]
+    })
+  ][
+    #v(0.3cm)
+    #cetz.canvas({
+      import cetz.draw: *
+      rect((), (rel: (2.8, -0.5)), name: "cmd")
+      content("cmd")[`REVIEW_CARD`]
+      rect("cmd.north-east", (rel: (0.2, -0.5)), name: "space")
+      rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
+      content("arg")[`request`]
+      rect("arg.north-east", (rel: (0.2, -0.5)), name: "space")
+      rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
+      content("arg")[_src port_]
+
+      rect((rel: (0, -1), to: "cmd.north-west"), (rel: (2.8, -0.5)), name: "cmd")
+      content("cmd")[`REVIEW_CARD`]
+      rect("cmd.north-east", (rel: (0.2, -0.5)), name: "space")
+      rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
+      content("arg")[`accept`]
+      rect("arg.north-east", (rel: (0.2, -0.5)), name: "space")
+      rect("space.north-east", (rel: (1.5, -0.5)), name: "arg")
+      content("arg")[_src port_]
+    })
+  ]
 ]
+Nei messaggi di richiesta e approvazionereview è
+contenuta la porta dell'utente che ha inviato il messaggio.
+Questo perché riassegnare la stessa porta ripetutamente
+causa problemi con l'esecuzione del programma quando si va
+ad aumentare il numero degli utenti. Si lascia quindi
+assegnare una porta al sistema operativo.
 
 == Passaggio finale
 #figure(placement: none, caption: [Formato del messaggio inviato alla
   lavagna dopo la ricezione di tutte le approvazioni])[
   #set text(size: 9pt)
-  #cetz.canvas({
-    import cetz.draw: *
-    rect((), (rel: (2.5, -0.5)), name: "cmd")
-    content("cmd")[`CARD_DONE`]
-  })
+  #grid()[
+    #set text(size: 9pt)
+    #set box(fill: white, outset: 0.2em)
+    #cetz.canvas({
+      import cetz.draw: *
+      content((), name: "utente")[Utente]
+      content((rel: (5, 0), to: "utente"), name: "lavagna")[Lavagna]
+      set-style(mark: (end: "straight"))
+      line((rel: (0, -0.2), to: "utente.south"), (rel: (0, -2.2)))
+      line((rel: (0, -0.2), to: "lavagna.south"), (rel: (0, -2.2)))
+      //Primo messaggio
+      anchor("u-1", (rel: (0, -0.5), to: "utente.south"))
+      anchor("l-1", (rel: (0, -1), to: "lavagna.south"))
+      line("u-1", "l-1", name: "m-1")
+      content("m-1.50%")[#box[`CARD_DONE`]]
+    })
+
+  ][
+    #v(0.3cm)
+    #cetz.canvas({
+      import cetz.draw: *
+      rect((), (rel: (2.5, -0.5)), name: "cmd")
+      content("cmd")[`CARD_DONE`]
+    })
+  ]
 ]

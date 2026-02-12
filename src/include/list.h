@@ -48,6 +48,8 @@ typedef struct list
 	struct list *prev;
 } list_t;
 
+#define FOREACH_LIST(iter, list) for(list_t *iter = (list)->next; iter != (list); iter = iter->next)
+
 /**
  * @brief Inizializza una lista vuota, portandola
  * in uno stato consistente
@@ -82,6 +84,16 @@ static inline void push_back(list_t *head, list_t *elem)
 }
 
 /**
+ * @brief inserisce `to_insert` nella lista subito prima di `pos` 
+ * 
+ * @note `insert_before` deve fare le stesse cose di `push_back`.
+ * per leggibilità, `insert_before` è inteso per quando si vuole
+ * inserire un elemento in una posizione che non è necessariamente
+ * la fine.
+ */
+#define insert_before(pos, to_insert) push_back(pos, to_insert)
+
+/**
  * @brief Rimuove `elem` dalla lista a cui appartiene.
  * 
  * @returns `elem` se è stato rimosso, `NULL` se la lista è vuota
@@ -109,6 +121,5 @@ static inline list_t *pop_back(list_t *head)
 	return pop_elem(head->prev);
 }
 
-#define FOREACH_LIST(iter, list) for(list_t *iter = (list)->next; iter != (list); iter = iter->next)
 
 #endif

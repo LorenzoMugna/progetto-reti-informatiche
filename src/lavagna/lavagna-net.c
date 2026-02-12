@@ -9,7 +9,13 @@
 struct pollfd sock_set[RESERVED_SOCK_SET_SOCKETS + MAX_USERS];
 uint32_t current_users;
 
-void remove_from_sock_set(int fd)
+/**
+ * @brief Rimuove un file descriptor dal `sock_set` e aggiorna `current_users` di conseguenza.
+ * Il file descriptor viene rimosso spostando tutti gli elementi successivi indietro di una posizione.
+ * 
+ * @param fd il file descriptor da rimuovere
+ */
+static void remove_from_sock_set(int fd)
 {
 	uint32_t w = RESERVED_SOCK_SET_SOCKETS,
 			 r = RESERVED_SOCK_SET_SOCKETS;
@@ -121,7 +127,21 @@ int accept_user(int server_fd)
 	if (!newuser)
 		goto connection_rejected_error;
 
-	push_back(&user_list, &newuser->list);
+	
+	// Inserisci l'utente nella user_list ordinato per porta
+	list_t *successor = &user_list;
+	FOREACH_LIST(iter, &user_list)
+	{
+		user_t *u = (user_t *)iter;
+		if (u->sockaddr.sin_port > useraddr.sin_port)
+		{
+			successor = iter;
+			break;
+		}
+
+	}
+	insert_before(successor, &newuser->list);
+
 	user_table[user_port] = newuser;
 
 	// Aggiunta del socket al sock_set
@@ -134,7 +154,7 @@ int accept_user(int server_fd)
 	sendf(user_sock, "%s", command_strings[HELLO]);
 
 	distribute_cards();
-	return user_sock;
+	return ntohs(useraddr.sin_port);
 
 connection_rejected_error:
 	// Rifiuta il client inviandogli QUIT
@@ -156,9 +176,9 @@ int disconnect_user(user_t *user)
 		push_back(&to_do_list, &card->list);
 		card->user = 0;
 		card->last_changed = time(NULL);
-
 		// Prova a riassegnare la carta
 		distribute_cards();
+		show_lavagna();
 	}
 
 	uint16_t user_port = ntohs(user->sockaddr.sin_port);
@@ -217,7 +237,7 @@ int handle_CREATE_CARD(user_t *user, command_t *command)
 	push_back(&to_do_list, &card->list);
 	last_card_id++;
 
-	show_lavagna_handler();
+	show_lavagna();
 
 	distribute_cards();
 	return 0;
@@ -296,7 +316,7 @@ int handle_ACK_CARD(user_t *user, command_t *command)
 	user->timeout_type = TIMEOUT_PING_USER;
 	user->next_timeout = time(NULL) + PING_TIMEOUT;
 
-	show_lavagna_handler();
+	show_lavagna();
 	return 0;
 
 error:
@@ -308,11 +328,8 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 {
 	(void)command;
 
-	log_line("inviando lista...\n");
-	;
 	if (!user)
 		goto error;
-	log_line("utente valido\n");
 	int user_socket_fd = user->socket;
 
 	char buf[1024];
@@ -325,7 +342,7 @@ int handle_REQUEST_USER_LIST(user_t *user, command_t *command)
 	if (err == -1)
 		goto error;
 
-	log_line("Lista utenti inviata\n");
+	log_line("[SEND_USER_LIST] -> %hu\n", ntohs(user->sockaddr.sin_port));
 	return 0;
 
 error:
@@ -355,7 +372,7 @@ int handle_CARD_DONE(user_t *user, command_t *command)
 	user->next_timeout = 0;
 
 	distribute_cards();
-	show_lavagna_handler();
+	show_lavagna();
 	return 0;
 error:
 	return -1;
