@@ -23,7 +23,7 @@ Il codice è suddiviso in 4 cartelle:
 - `src/utente/`: sorgenti e header relativi all'utente
 - `src/lavagna/`: sorgenti e header relativi alla lavagna
 
-Nella stessa cartella in cui è presente il Makefile,
+Nella stessa cartella in cui è presente il file `Makefile`,
 eseguire il comando #highlight[`make all`]. Al termine
 della compilazione saranno prodotti due link simbolici,
 `./lavagna` e `./utente`, nella cartella radice del progetto,
@@ -359,7 +359,7 @@ di lunghezza.
     })
   ]
 ]
-Nei messaggi di richiesta e approvazionereview è
+Nei messaggi di richiesta e approvazione review è
 contenuta la porta dell'utente che ha inviato il messaggio.
 Questo perché riassegnare la stessa porta ripetutamente
 causa problemi con l'esecuzione del programma quando si va
